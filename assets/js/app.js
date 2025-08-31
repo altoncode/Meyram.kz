@@ -76,14 +76,46 @@ function buildCreateUrl(expert, answersArr){
   return `${GAS_ENDPOINT}?${qs}`;
 }
 
-/* Drive URL helper: embed & share links */
+// 1) preview URL-ды минимал UI-мен берейік
 function driveEmbedUrl(pdf){
-  // Превью үшін iframe-ке болатын сілтеме
   const id = pdf?.id || extractId(pdf?.url || '');
   if (!id) return null;
-  // preview — iframe friendly
-  return `https://drive.google.com/file/d/${id}/preview#view=FitH`;
+  // rm=minimal -> Drive UI азаяды (шрифттер аз жүктеледі)
+  return `https://drive.google.com/file/d/${id}/preview?rm=minimal#view=FitH`;
 }
+
+// 2) принт функциясы сол күйі қалады (жасырын iframe арқылы)
+function printViaHiddenIframe(url){
+  const prev = document.getElementById('print-frame'); if (prev) try{prev.remove();}catch{}
+  const f=document.createElement('iframe');
+  f.id='print-frame';
+  Object.assign(f.style,{position:'fixed',right:'0',bottom:'0',width:'0',height:'0',border:'0'});
+  f.src = url;
+
+  let fired=false;
+  const go=()=>{ if(fired) return; fired=true;
+    try{ f.contentWindow?.focus(); f.contentWindow?.print(); }catch{}
+    setTimeout(()=>{ try{f.remove();}catch{} }, 1500);
+  };
+
+  // Негізгі – onload, қосымша – safety timeout
+  f.onload=()=>setTimeout(go, 300);
+  setTimeout(go, 8000);
+  document.body.appendChild(f);
+}
+Ескерту:
+
+Бұл “Slow network…” жазбаларын толық жоймайды (олар Drive-тың өз консольі), бірақ азайта алады. Функционалға әсер етпейді.
+
+Негізгі тексеретін нәрсе — файлға “Anyone with the link → Viewer” рұқсаты берілгені. Оны GAS-та мына жолмен қосқаныңызға көз жеткізіңіз:
+
+js
+Копировать код
+Drive.Permissions.create(
+  {role:'reader', type:'anyone', allowFileDiscovery:false},
+  fileId,
+  {supportsAllDrives:true}
+);
 function driveShareUrl(pdf){
   // Пайдаланушыға жіберуге ыңғайлы view
   const id = pdf?.id || extractId(pdf?.url || '');
