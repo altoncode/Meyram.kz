@@ -66,8 +66,12 @@ function sanitizeFilename(name){
   const allowed = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-';
   let out = '';
   for (const ch of s) out += allowed.indexOf(ch) !== -1 ? ch : '_';
-  // қысқарту
-  let compact = '', prev=false; for(const ch of out){ if(ch==='_'){ if(!prev) compact+='_'; prev=true; } else { compact+=ch; prev=false; } }
+  // қатар '_' қысқарту
+  let compact = '', prev=false; 
+  for(const ch of out){ 
+    if(ch==='_'){ if(!prev) compact+='_'; prev=true; } 
+    else { compact+=ch; prev=false; } 
+  }
   return compact.length>80?compact.slice(0,80):compact;
 }
 function formatDateYMD(d=new Date()){
@@ -84,7 +88,7 @@ async function uploadPdfToDrive(pdfBlob, meta={}, filename){
   const payload = { filename: filename || `meyram-${Date.now()}.pdf`, mimeType:'application/pdf', base64: dataURL, meta };
   const url = GAS_ENDPOINT + '?secret=' + encodeURIComponent(GAS_SECRET);
 
-  // CORS-ты айналып өту: жауапты оқымаймыз
+  // CORS-ты айналып өту: жауапты оқымаймыз (opaque)
   await fetch(url, {
     method: 'POST',
     mode: 'no-cors',
@@ -137,7 +141,8 @@ function renderQuestion(){
       $$('.opt').forEach(el=>{ el.classList.remove('active'); el.setAttribute('aria-checked','false'); });
       opt.classList.add('active'); opt.setAttribute('aria-checked','true');
       saveState();
-      if(useTimer) setTimeout(()=>move(1),120); // автокөшу тек таймер қосулыда
+      // автокөшу тек таймер қосулы кезде
+      if(useTimer) setTimeout(()=>move(1),120);
     });
 
     opt.addEventListener('click',()=>input.click());
@@ -213,12 +218,14 @@ function showResult(){
   show('#screen-result'); saveState();
 }
 
-// === PDF экспорт + Drive жүктеу ================================
+// === ТЕК Drive + Печать ================================================
 async function exportPDF(){
+  // Файл атауы үшін маман атын жинау
   let expert = (function(){
     const a=$('#expertName')?.value?.trim(); if(a) return a;
     const b=(window.__who&&window.__who.name)?String(window.__who.name).trim():''; if(b) return b;
-    const disp=$('#expertDisplay')?.textContent||''; const prefix='Маман:'; return disp.startsWith(prefix)?disp.slice(prefix.length).trim(): (disp.trim()||'unknown');
+    const disp=$('#expertDisplay')?.textContent||''; const prefix='Маман:'; 
+    return disp.startsWith(prefix)?disp.slice(prefix.length).trim(): (disp.trim()||'unknown');
   })();
   expert = sanitizeFilename(expert);
   const fileName = `${expert}_${formatDateYMD(new Date())}.pdf`;
@@ -231,21 +238,42 @@ async function exportPDF(){
     generatedAt: new Date().toISOString()
   };
 
-  const pdf = await makePdfFromDom('#screen-result', { margin: 10 });
-  pdf.save(fileName);
+  // Попап-блокерге түспеу үшін жаңа табты алдын ала ашып қоямыз
+  const win = window.open('about:blank', '_blank', 'noopener');
 
+  // Печать диалогы: тек нәтижені көрсететін @media print стильдері index.html-да болуы керек
+  try { window.print(); } catch(_) {}
+
+  // Кітапханалар бар-жоғын тексеру
+  if (typeof html2canvas !== 'function' || !window.jspdf?.jsPDF) {
+    console.error('html2canvas/jsPDF жүктелмеген.');
+    if (win && !win.closed) win.document.write('<p style="font:14px/1.4 sans-serif">Қате: PDF кітапханалары жүктелмеген.</p>');
+    return;
+  }
+
+  // DOM -> PDF Blob (локалға сақтамаймыз!)
+  const pdf = await makePdfFromDom('#screen-result', { margin: 10 });
   const pdfBlob = pdf.output('blob');
+
+  // Drive-қа жіберу (CORS-сыз)
+  const latestUrl = GAS_ENDPOINT
+    + '?latest=1&secret=' + encodeURIComponent(GAS_SECRET)
+    + '&user=' + encodeURIComponent(meta.user || expert);
+
   try {
     await uploadPdfToDrive(pdfBlob, meta, fileName);
-
-    // Соңғы файлды жаңа табта ашу (CORS жоқ)
-    const latestUrl = GAS_ENDPOINT + '?latest=1&secret=' + encodeURIComponent(GAS_SECRET) + '&user=' + encodeURIComponent(meta.user || expert);
-    window.open(latestUrl, '_blank', 'noopener');
-
-    alert('Drive-қа жіберілді ✅ (жаңа табта ашылады)');
+    // Кішкене кідіріс: latest индексі жазылып үлгерсін
+    setTimeout(()=>{
+      if (win && !win.closed) win.location.href = latestUrl;
+      else window.open(latestUrl, '_blank', 'noopener');
+    }, 400);
   } catch (err) {
-    console.error(err);
-    alert('PDF локалға сақталды. Drive-қа жіберуде желілік шектеу болуы мүмкін — папканы тексеріңіз.');
+    console.error('Drive upload error:', err);
+    if (win && !win.closed) {
+      win.document.write('<p style="font:14px/1.4 sans-serif">Drive-қа жүктеу сәтсіз. Кейінірек қайталап көріңіз.</p>');
+    } else {
+      alert('Drive-қа жүктеу сәтсіз. Кейінірек қайталап көріңіз.');
+    }
   }
 }
 
@@ -281,6 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   on('#btnBack','click',()=> move(-1));
+  // Талап бойынша "Skip" жоқ болса — мына жолды алып тастауға болады
   on('#btnSkip','click',()=>{ answers[current]=null; move(1); });
 
   on('#btnRestart','click',()=>{ answers.fill(null); localStorage.removeItem(LS_KEY); location.reload(); });
@@ -292,7 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const key=e.key;
     if(['1','2','3','4','5'].includes(key)){
       const idx=Number(key)-1; answers[current]=idx; saveState(); renderQuestion();
-      if(useTimer) setTimeout(()=>move(1),120);
+      if(useTimer) setTimeout(()=>move(1),120); // тек таймер қосулы болса ғана
     }
     if(key==='ArrowRight') move(1);
     if(key==='ArrowLeft') move(-1);
