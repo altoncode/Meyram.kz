@@ -105,7 +105,6 @@ function printViaHiddenIframe(url){
 }
 
 function driveShareUrl(pdf){
-  // Пайдаланушыға жіберуге ыңғайлы view
   const id = pdf?.id || extractId(pdf?.url || '');
   if (!id) return pdf?.url || null;
   return `https://drive.google.com/file/d/${id}/view?usp=sharing`;
