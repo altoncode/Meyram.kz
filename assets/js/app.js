@@ -150,8 +150,8 @@ function compute(){
 function showWaiting(){
   show('#screen-result');
   $('#expertDisplay').textContent = '';
-  $('#topTitle').textContent = 'Нәтиже дайындалуда…';
-  $('#topDesc').textContent  = 'PDF жасалып, Google Drive-қа сақталып жатыр.';
+  $('#topTitle').textContent = 'Нәтижеңіз дайындалуда…';
+  $('#topDesc').textContent  = 'Кішкене күтіңіз. Нәтиже дайын болған соң оны PDF ретінде сақтауға немесе оның сілтемесімен бөлісе аласыз!';
   $('#bars').innerHTML = '';
   $('#explain').innerHTML = '';
   setButtonsEnabled(false);
