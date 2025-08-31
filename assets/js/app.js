@@ -62,17 +62,23 @@ function show(id){
 }
 
 function sanitizeFilename(name){
-  const s = String(name || 'unknown').trim();
-  const allowed = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-';
-  let out = '';
-  for (const ch of s) out += allowed.indexOf(ch) !== -1 ? ch : '_';
-  // қатар '_' қысқарту
-  let compact = '', prev=false; 
-  for(const ch of out){ 
-    if(ch==='_'){ if(!prev) compact+='_'; prev=true; } 
-    else { compact+=ch; prev=false; } 
-  }
-  return compact.length>80?compact.slice(0,80):compact;
+  // Кіріс
+  let s = String(name || '').trim();
+
+  // Тыйым салынғандар: / \ : * ? " < > | және басқару таңбалары
+  s = s.replace(/[\/\\:\*\?"<>|\u0000-\u001F]+/g, '');
+
+  // Бос орындарды '_' қыламыз, қатар тұрғандарын қысқартамыз
+  s = s.replace(/\s+/g, '_').replace(/_+/g, '_');
+
+  // Басында/соңында тұрған '_' алып тастау
+  s = s.replace(/^_+|_+$/g, '');
+
+  // Бәрі өшіп қалса — мағыналы дефолт
+  if (!s || /^_+$/.test(s)) s = 'Маман';
+
+  // Ұзындық шегі
+  return s.slice(0, 80);
 }
 function formatDateYMD(d=new Date()){
   const yyyy=d.getFullYear(), mm=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
@@ -231,17 +237,13 @@ function showResult(){
   show('#screen-result'); saveState();
 }
 
-// === ТЕК Drive (фонда) + Печать. ЕШҚАНДАЙ window.open ЖОҚ =================
-async function exportPDF() {
-  // Қауіп үшін бұрын қойылған "Drive: ..." сілтемесін өшіреміз
-  const oldLink = document.getElementById('drive-link');
-  if (oldLink) oldLink.remove();
-
+// === ТЕК Печать тез ашылады; Drive-қа фонмен жібереміз =================
+function exportPDF() {
   // Файл атауы
   let expert = (function(){
     const a = $('#expertName')?.value?.trim(); if (a) return a;
     const b = (window.__who && window.__who.name) ? String(window.__who.name).trim() : ''; if (b) return b;
-    const disp = $('#expertDisplay')?.textContent || ''; 
+    const disp = $('#expertDisplay')?.textContent || '';
     const prefix = 'Маман:'; 
     return disp.startsWith(prefix) ? disp.slice(prefix.length).trim() : (disp.trim() || 'unknown');
   })();
@@ -256,24 +258,31 @@ async function exportPDF() {
     generatedAt: new Date().toISOString()
   };
 
-  if (typeof html2canvas !== 'function' || !window.jspdf?.jsPDF) {
-    alert('PDF кітапханалары жүктелмеген. Қайталап көріңіз.');
-    return;
+  // 1) ПЕЧАТ бірден ашамыз — күттіртпей
+  try { window.print(); } catch(_) {}
+
+  // 2) Печать жабылғаннан кейін ғана ауыр жұмыс (DOM->PDF->Drive)
+  const doUpload = async () => {
+    try {
+      if (typeof html2canvas !== 'function' || !window.jspdf?.jsPDF) return; // кітапхана жоқ болса — жай ғана шығамыз
+      const pdf = await makePdfFromDom('#screen-result', { margin: 10 });
+      const pdfBlob = pdf.output('blob');
+      await uploadPdfToDrive(pdfBlob, meta, fileName); // sendBeacon/fetch(no-cors) — үнсіз
+    } catch (e) {
+      console.error('Drive upload error:', e);
+    }
+  };
+
+  if ('onafterprint' in window) {
+    const handler = async () => {
+      window.removeEventListener('afterprint', handler);
+      doUpload();
+    };
+    window.addEventListener('afterprint', handler);
+  } else {
+    // Кейбір браузерлер үшін фолбэк
+    setTimeout(doUpload, 100);
   }
-
-  // 1) DOM -> PDF (Blob). ЛОКАЛҒА САҚТАМАЙМЫЗ!
-  const pdf = await makePdfFromDom('#screen-result', { margin: 10 });
-  const pdfBlob = pdf.output('blob');
-
-  // 2) Drive-қа фондық жіберу: sendBeacon -> fetch(no-cors)
-  try {
-    await uploadPdfToDrive(pdfBlob, meta, fileName);
-  } catch (err) {
-    console.error('Drive upload error:', err);
-  }
-
-  // 3) Соңында принт диалогын ашамыз
-  try { window.print(); } catch (_) {}
 }
 
 // --- Persistence --------------------------------------------------------
