@@ -1,5 +1,6 @@
 // Meyram Quiz — app.js
 // TZ: Asia/Almaty (UTC+5)
+'use strict';
 
 // === Google Apps Script конфиг ======================
 const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycby_pziF5-mk60p5dXet0LLzvY_wZHPj9j0JdKwoz3pNu3-gUAdFGwrA0TDgQ4jRQT7P/exec';
@@ -61,23 +62,13 @@ function show(id){
   $(id)?.classList.remove('hidden');
 }
 
+// Кириллді сақтаймыз, тек шын тыйым салынғандарын алып тастаймыз
 function sanitizeFilename(name){
-  // Кіріс
   let s = String(name || '').trim();
-
-  // Тыйым салынғандар: / \ : * ? " < > | және басқару таңбалары
-  s = s.replace(/[\/\\:\*\?"<>|\u0000-\u001F]+/g, '');
-
-  // Бос орындарды '_' қыламыз, қатар тұрғандарын қысқартамыз
-  s = s.replace(/\s+/g, '_').replace(/_+/g, '_');
-
-  // Басында/соңында тұрған '_' алып тастау
-  s = s.replace(/^_+|_+$/g, '');
-
-  // Бәрі өшіп қалса — мағыналы дефолт
-  if (!s || /^_+$/.test(s)) s = 'Маман';
-
-  // Ұзындық шегі
+  s = s.replace(/[\/\\:\*\?"<>|\u0000-\u001F]+/g, ''); // forbidden
+  s = s.replace(/\s+/g, '_').replace(/_+/g, '_');      // space -> _
+  s = s.replace(/^_+|_+$/g, '');                       // trim _
+  if (!s) s = 'Маман';
   return s.slice(0, 80);
 }
 function formatDateYMD(d=new Date()){
@@ -100,23 +91,18 @@ async function uploadPdfToDrive(pdfBlob, meta = {}, filename) {
   const url = GAS_ENDPOINT + '?secret=' + encodeURIComponent(GAS_SECRET);
   const bodyStr = JSON.stringify(payload);
 
-  // 1) sendBeacon – фондық жіберу
   if (navigator.sendBeacon) {
     const ok = navigator.sendBeacon(url, new Blob([bodyStr], { type: 'text/plain;charset=utf-8' }));
     if (ok) return { ok: true, method: 'beacon' };
   }
-
-  // 2) Фолбэк: CORS-сыз fetch
   await fetch(url, {
     method: 'POST',
     mode: 'no-cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: bodyStr
   });
-
   return { ok: true, method: 'fetch' };
 }
-
 
 async function makePdfFromDom(selector, { margin=10 }={}){
   const el = document.querySelector(selector);
@@ -134,7 +120,12 @@ async function makePdfFromDom(selector, { margin=10 }={}){
   const imgW = usableW, imgH = (imgProps.height * imgW) / imgProps.width;
 
   const x=margin, y=margin; pdf.addImage(imgData,'PNG',x,y,imgW,imgH,undefined,'FAST');
-  let pos=y; while((imgH+pos)>pageH-margin){ pos -= (pageH - margin*2); pdf.addPage(); pdf.addImage(imgData,'PNG',x,pos,imgW,imgH,undefined,'FAST'); }
+  let pos=y; 
+  while((imgH+pos)>pageH-margin){
+    pos -= (pageH - margin*2);
+    pdf.addPage();
+    pdf.addImage(imgData,'PNG',x,pos,imgW,imgH,undefined,'FAST');
+  }
   return pdf;
 }
 
@@ -147,53 +138,97 @@ function renderQuestion(){
   $('#progress').style.width = Math.round((answeredCount/QUESTIONS.length)*100) + '%';
 
   const labels = ['Мүлде сәйкес келмейді','Көбірек сәйкес келмейді','Бейтарап','Көбірек сәйкес келеді','Өте сәйкес келеді'];
-  const scale = $('#scale'); scale.innerHTML=''; scale.setAttribute('role','radiogroup'); scale.setAttribute('aria-label','Бағалау шкаласы');
+  const scale = $('#scale'); 
+  scale.innerHTML=''; 
+  scale.setAttribute('role','radiogroup'); 
+  scale.setAttribute('aria-label','Бағалау шкаласы');
 
   labels.forEach((lab, idx) => {
-    const opt = document.createElement('div'); opt.className='opt'; opt.setAttribute('role','radio'); opt.setAttribute('aria-checked', answers[current]===idx?'true':'false'); opt.tabIndex=0;
-    const text=document.createElement('span'); text.textContent=lab;
+    const opt = document.createElement('div'); 
+    opt.className='opt'; 
+    opt.setAttribute('role','radio'); 
+    opt.setAttribute('aria-checked', answers[current]===idx?'true':'false'); 
+    opt.tabIndex=0;
 
-    const input=document.createElement('input'); input.type='radio'; input.name=`q${current}`; input.value=String(idx); input.tabIndex=-1; input.style.pointerEvents='none';
-    if(answers[current]===idx){ input.checked=true; opt.classList.add('active'); }
+    const text=document.createElement('span'); 
+    text.textContent=lab;
+
+    const input=document.createElement('input'); 
+    input.type='radio'; 
+    input.name=`q${current}`; 
+    input.value=String(idx); 
+    input.tabIndex=-1; 
+    input.style.pointerEvents='none';
+
+    if(answers[current]===idx){ 
+      input.checked=true; 
+      opt.classList.add('active'); 
+    }
 
     input.addEventListener('change',()=>{
       answers[current]=idx;
       $$('.opt').forEach(el=>{ el.classList.remove('active'); el.setAttribute('aria-checked','false'); });
-      opt.classList.add('active'); opt.setAttribute('aria-checked','true');
+      opt.classList.add('active'); 
+      opt.setAttribute('aria-checked','true');
       saveState();
       if(useTimer) setTimeout(()=>move(1),120); // автокөшу тек таймер қосулыда
     });
 
     opt.addEventListener('click',()=>input.click());
-    opt.addEventListener('keydown',(e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); input.click(); }});
+    opt.addEventListener('keydown',(e)=>{
+      if(e.key==='Enter'||e.key===' '){ e.preventDefault(); input.click(); }
+    });
 
-    opt.append(text,input); scale.appendChild(opt);
+    opt.append(text,input); 
+    scale.appendChild(opt);
   });
 
-  if(useTimer){ $('#timerPill').style.display='inline-flex'; startTimer(PER_QUESTION,()=>move(1)); }
-  else { $('#timerPill').style.display='none'; stopTimer(); }
+  if(useTimer){ 
+    $('#timerPill').style.display='inline-flex'; 
+    startTimer(PER_QUESTION,()=>move(1)); 
+  } else { 
+    $('#timerPill').style.display='none'; 
+    stopTimer(); 
+  }
 
   $('#btnBack').disabled = (current===0);
 }
 
 function move(delta){
-  stopTimer(); current += delta;
+  stopTimer(); 
+  current += delta;
   if(current<0) current=0;
   if(current>=QUESTIONS.length){ showResult(); return; }
-  saveState(); renderQuestion();
+  saveState(); 
+  renderQuestion();
 }
 
 function startTimer(sec,onDone){
-  let left=sec; $('#timer').textContent=left;
-  timerId=setInterval(()=>{ left--; $('#timer').textContent=left; if(left<=0){ stopTimer(); onDone&&onDone(); } },1000);
+  let left=sec; 
+  $('#timer').textContent=left;
+  timerId=setInterval(()=>{
+    left--; 
+    $('#timer').textContent=left; 
+    if(left<=0){ stopTimer(); onDone&&onDone(); } 
+  },1000);
 }
-function stopTimer(){ if(timerId){ clearInterval(timerId); timerId=null; } }
+function stopTimer(){ 
+  if(timerId){ clearInterval(timerId); timerId=null; } 
+}
 
 function compute(){
-  const per={TH:[],RB:[],EX:[],IN:[]}; QUESTIONS.forEach((q,i)=>per[q.d].push(answers[i]));
+  const per={TH:[],RB:[],EX:[],IN:[]}; 
+  QUESTIONS.forEach((q,i)=>per[q.d].push(answers[i]));
   const raw={}, norm={};
-  for(const [k,arr] of Object.entries(per)){ const answered=arr.filter(v=>v!=null); const sum=answered.reduce((a,b)=>a+Number(b),0); const denom=Math.max(answered.length*4,1); raw[k]=sum; norm[k]=Math.round((sum/denom)*100); }
-  const maxRaw=Math.max(...Object.values(raw)); const top=Object.entries(raw).filter(([,v])=>v===maxRaw).map(([k])=>k);
+  for(const [k,arr] of Object.entries(per)){ 
+    const answered=arr.filter(v=>v!=null); 
+    const sum=answered.reduce((a,b)=>a+Number(b),0); 
+    const denom=Math.max(answered.length*4,1); 
+    raw[k]=sum; 
+    norm[k]=Math.round((sum/denom)*100); 
+  }
+  const maxRaw=Math.max(...Object.values(raw)); 
+  const top=Object.entries(raw).filter(([,v])=>v===maxRaw).map(([k])=>k);
   return { raw, norm, top };
 }
 
@@ -210,18 +245,30 @@ function showResult(){
     ? 'Екі (немесе одан да көп) доменіңіз тең дәрежеде күшті көрінеді — бұл жан-жақтылықты білдіреді.'
     : DOMAINS[top[0]].desc;
 
-  const bars=$('#bars'); bars.innerHTML='';
+  const bars=$('#bars'); 
+  bars.innerHTML='';
   ['TH','RB','EX','IN'].forEach(k=>{
-    const row=document.createElement('div'); row.className='barrow';
-    const lab=document.createElement('div'); lab.innerHTML=`<span class="badge">${k}</span> ${DOMAINS[k].name}`;
-    const track=document.createElement('div'); track.className='bartrack';
-    const fill=document.createElement('div'); fill.className='barfill'; fill.style.background=`linear-gradient(90deg, ${DOMAINS[k].color}, #6ea8fe)`; fill.style.width='0%';
-    const pct=document.createElement('div'); pct.textContent=norm[k]+'%'; pct.style.textAlign='right';
-    track.appendChild(fill); row.append(lab,track,pct); bars.appendChild(row);
+    const row=document.createElement('div'); 
+    row.className='barrow';
+    const lab=document.createElement('div'); 
+    lab.innerHTML=`<span class="badge">${k}</span> ${DOMAINS[k].name}`;
+    const track=document.createElement('div'); 
+    track.className='bartrack';
+    const fill=document.createElement('div'); 
+    fill.className='barfill'; 
+    fill.style.background=`linear-gradient(90deg, ${DOMAINS[k].color}, #6ea8fe)`; 
+    fill.style.width='0%';
+    const pct=document.createElement('div'); 
+    pct.textContent=norm[k]+'%'; 
+    pct.style.textAlign='right';
+    track.appendChild(fill); 
+    row.append(lab,track,pct); 
+    bars.appendChild(row);
     requestAnimationFrame(()=>{ fill.style.width=norm[k]+'%'; });
   });
 
-  const ex=$('#explain'); ex.innerHTML='';
+  const ex=$('#explain'); 
+  ex.innerHTML='';
   const SUG={
     TH:'Аналитик, стратег, сценарий архитектор, R&D, дерекке негізделген шешімдер.',
     RB:'Команда коучы, HR/қабылдау, қауымдастық жетекшісі, ата-аналармен байланыс.',
@@ -234,12 +281,12 @@ function showResult(){
     ex.appendChild(div);
   });
 
-  show('#screen-result'); saveState();
+  show('#screen-result'); 
+  saveState();
 }
 
-// === ТЕК Печать тез ашылады; Drive-қа фонмен жібереміз =================
+// === Печать лезде; Drive-қа фонмен жібереміз ============================
 function exportPDF() {
-  // Файл атауы
   let expert = (function(){
     const a = $('#expertName')?.value?.trim(); if (a) return a;
     const b = (window.__who && window.__who.name) ? String(window.__who.name).trim() : ''; if (b) return b;
@@ -258,31 +305,30 @@ function exportPDF() {
     generatedAt: new Date().toISOString()
   };
 
-  // 1) ПЕЧАТ бірден ашамыз — күттіртпей
-  try { window.print(); } catch(_) {}
-
-  // 2) Печать жабылғаннан кейін ғана ауыр жұмыс (DOM->PDF->Drive)
+  // Жүктеу функциясы (печаттан кейін)
+  let uploadDone = false;
   const doUpload = async () => {
+    if (uploadDone) return; // екі рет шақырылмау үшін
+    uploadDone = true;
     try {
-      if (typeof html2canvas !== 'function' || !window.jspdf?.jsPDF) return; // кітапхана жоқ болса — жай ғана шығамыз
+      if (typeof html2canvas !== 'function' || !window.jspdf?.jsPDF) return;
       const pdf = await makePdfFromDom('#screen-result', { margin: 10 });
       const pdfBlob = pdf.output('blob');
-      await uploadPdfToDrive(pdfBlob, meta, fileName); // sendBeacon/fetch(no-cors) — үнсіз
+      await uploadPdfToDrive(pdfBlob, meta, fileName);
     } catch (e) {
       console.error('Drive upload error:', e);
     }
   };
 
-  if ('onafterprint' in window) {
-    const handler = async () => {
-      window.removeEventListener('afterprint', handler);
-      doUpload();
-    };
-    window.addEventListener('afterprint', handler);
-  } else {
-    // Кейбір браузерлер үшін фолбэк
-    setTimeout(doUpload, 100);
-  }
+  // afterprint тыңдағышын print-ке дейін қоямыз
+  const after = () => { window.removeEventListener('afterprint', after); doUpload(); };
+  if ('onafterprint' in window) window.addEventListener('afterprint', after);
+
+  // Печатты бірден ашамыз (күттірмейміз)
+  try { window.print(); } catch(_) {}
+
+  // Кейбір браузерлер afterprint шығармайды — фолбэк
+  setTimeout(doUpload, 300);
 }
 
 // --- Persistence --------------------------------------------------------
@@ -328,11 +374,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const key=e.key;
     if(['1','2','3','4','5'].includes(key)){
       const idx=Number(key)-1; answers[current]=idx; saveState(); renderQuestion();
-      if(useTimer) setTimeout(()=>move(1),120); // тек таймер қосулы болса ғана
+      if(useTimer) setTimeout(()=>move(1),120);
     }
     if(key==='ArrowRight') move(1);
     if(key==='ArrowLeft') move(-1);
   });
 
-  document.addEventListener('visibilitychange',()=>{ if(!useTimer) return; if(document.hidden) stopTimer(); else startTimer(PER_QUESTION,()=>move(1)); });
+  document.addEventListener('visibilitychange',()=>{
+    if(!useTimer) return; 
+    if(document.hidden) stopTimer(); else startTimer(PER_QUESTION,()=>move(1));
+  });
 });
