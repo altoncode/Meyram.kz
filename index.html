@@ -11,7 +11,7 @@
 
   <meta name="description" content="Мейрам киностудиясы: қысқартылған домен-тест (20 сұрақ). Стратегиялық ойлау, қарым-қатынас, орындау, әсер ету домендері бойынша нәтиже.">
 
-  <!-- ✔ Жедел override-тар: лого өлшемі, орталау, инпут стилі -->
+  <!-- ✔ Жедел override-тар -->
   <style>
     .header-row{display:flex;align-items:center;gap:12px}
     .logo{
@@ -29,7 +29,7 @@
       width:100%;padding:12px 14px;border-radius:10px;
       border:1px solid rgba(255,255,255,.2);
       background:#fafafc;color:#0f0707;
-      font-size:16px;font-weight:700;text-align:center; /* fixed */
+      font-size:16px;font-weight:700;text-align:center;
     }
   </style>
 </head>
@@ -110,7 +110,6 @@
 
     <div class="card hidden" id="screen-result">
       <h1>Нәтиже</h1>
-      <!-- ✔ Маман аты нәтиже бетінде -->
       <p id="expertDisplay" class="lead" style="margin-top:0"></p>
 
       <div class="result-grid">
@@ -135,160 +134,11 @@
     </div>
   </div>
 
-  <!-- ✔ Негізгі логикаңыз -->
+  <!-- ✔ Кітапханалар (алдымен), defer -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
+
+  <!-- ✔ Негізгі логика (соңында), defer -->
   <script src="assets/js/app.js" defer></script>
-
-  <!-- ✔ DOM->PDF кітапханалары -->
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-
-  <!-- ✔ PDF генерация + Google Drive жүктеу -->
-  <script>
-  (function(){
-    'use strict';
-
-    // ===== GAS конфиг (сіз берген) =====
-    const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzZUFbtDNt3XRiYEBIo8oFXIXn5-GeSiKo1YQZknvo81lYAi8deWO9ejfyUnI6mLp17/exec';
-    const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
-
-    // ===== Көмекшілер =====
-    function sanitizeFilename(name){
-      return String(name || 'unknown')
-        .trim()
-        .replace(/[\/\\:\*\?"<>\|]+/g,'') // тыйым салынған символдар
-        .replace(/\s+/g,'_')              // бос орын → _
-        .slice(0,80);
-    }
-    function formatDateYMD(d=new Date()){
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth()+1).padStart(2,'0');
-      const dd = String(d.getDate()).padStart(2,'0');
-      return `${yyyy}-${mm}-${dd}`;
-    }
-    function blobToDataURL(blob){
-      return new Promise((res,rej)=>{
-        const r=new FileReader();
-        r.onload = ()=>res(r.result);
-        r.onerror = rej;
-        r.readAsDataURL(blob);
-      });
-    }
-
-    async function uploadPdfToDrive(pdfBlob, meta={}, filename){
-      const dataURL = await blobToDataURL(pdfBlob);
-      const payload = {
-        filename: filename || `meyram-${Date.now()}.pdf`,
-        mimeType: 'application/pdf',
-        base64: dataURL,
-        meta
-      };
-      const url = GAS_ENDPOINT + '?secret=' + encodeURIComponent(GAS_SECRET);
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // preflight жоқ
-        body: JSON.stringify(payload)
-      });
-      if(!res.ok) throw new Error('Drive upload failed: HTTP '+res.status);
-      return res.json(); // { ok, fileUrl, name, ... }
-    }
-
-    async function makePdfFromDom(selector, options={}){
-      const { margin = 10 } = options; // мм
-      const el = document.querySelector(selector);
-      if(!el) throw new Error('Нәтиже DOM табылмады: '+selector);
-
-      // Нәтиже картасын ақ фонда рендерлеу
-      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff' });
-      const imgData = canvas.toDataURL('image/png');
-
-      const pdf = new jspdf.jsPDF('p','mm','a4');
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-      const usableW = pageW - margin*2;
-
-      const imgProps = pdf.getImageProperties(imgData);
-      const imgW = usableW;
-      const imgH = (imgProps.height * imgW) / imgProps.width;
-
-      let x = margin, y = margin;
-      pdf.addImage(imgData, 'PNG', x, y, imgW, imgH, undefined, 'FAST');
-
-      // Егер биіктік көп болса — бірнеше бетке "сырғытып" басамыз
-      let position = y;
-      while ((imgH + position) > pageH - margin) {
-        position -= (pageH - margin*2);
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', x, position, imgW, imgH, undefined, 'FAST');
-      }
-      return pdf;
-    }
-
-    // Маман атын жадыға қою (егер app.js өзі қоймаса)
-    document.getElementById('btnStart')?.addEventListener('click', () => {
-      const name = document.getElementById('expertName')?.value?.trim();
-      if (name) {
-        window.__who = window.__who || {};
-        window.__who.name = name;
-        const disp = document.getElementById('expertDisplay');
-        if (disp && !disp.textContent.trim()) disp.textContent = 'Маман: ' + name;
-      }
-    });
-
-    // Негізгі экспорт
-    async function exportPDF(){
-      // Маман атын алу: input → window.__who → экрандағы текст → 'unknown'
-      let expert = document.getElementById('expertName')?.value?.trim()
-                || (window.__who && window.__who.name)
-                || document.getElementById('expertDisplay')?.textContent?.replace(/^Маман:\s*/,'')
-                || 'unknown';
-      expert = sanitizeFilename(expert);
-
-      const fileName = `${expert}_${formatDateYMD(new Date())}.pdf`;
-
-      const meta = {
-        user: (window.__who && (window.__who.phone || window.__who.name)) || expert || 'anonymous',
-        city: window.__who?.city || 'kz',
-        score: window.__score || 0,
-        quizId: 'meyram-quiz',
-        generatedAt: new Date().toISOString()
-      };
-
-      // 1) PDF жасау
-      const pdf = await makePdfFromDom('#screen-result', { margin: 10 });
-
-      // 2) Локалға сақтау
-      pdf.save(fileName);
-
-      // 3) Drive-қа дәл сол файлды жүктеу
-      const pdfBlob = pdf.output('blob');
-      try {
-        const r = await uploadPdfToDrive(pdfBlob, meta, fileName);
-
-        // Батырманың жанына Drive сілтемесін шығару
-        let a = document.getElementById('drive-link');
-        if (!a) {
-          a = document.createElement('a');
-          a.id = 'drive-link';
-          a.target = '_blank';
-          a.rel = 'noopener';
-          a.style.marginLeft = '8px';
-          const btnRow = document.getElementById('btnExport')?.parentElement;
-          if (btnRow) btnRow.appendChild(a);
-        }
-        a.href = r.fileUrl;
-        a.textContent = 'Drive: ' + (r.name || fileName);
-        a.style.display = 'inline-block';
-
-        alert('Drive-қа сақталды ✅');
-      } catch (err) {
-        console.error(err);
-        alert('PDF локалға сақталды, бірақ Drive-қа жүктеу сәтсіз. Кейінірек қайталап көріңіз.');
-      }
-    }
-
-    // Батырмаға ілу
-    document.getElementById('btnExport')?.addEventListener('click', exportPDF);
-  })();
-  </script>
 </body>
 </html>
