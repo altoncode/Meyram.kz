@@ -1,5 +1,5 @@
 // ====== Drive Upload (iframe + postMessage) ======
-const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwhpToU1iOp2yQ625DF1zdaJb5uUROaTRFGATWAOQZHjT4o3rmLkQ-K0JpcUxbYXSDg/exec';
+const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwunP4YAd4OeCGy31QxOy5N6DKZr2sS3kxkLxEO128iojuD8VIGATgw3Y4N97Jbvs4/exec';
 const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
 
 function sanitizeFilename(name){
