@@ -1,0 +1,316 @@
+/* Meyram Quiz — styles (clean) */
+:root{
+  --bg: #0a0f1f;
+  --card: #101833;
+  --muted:#a9b4d0;
+  --text:#e8eeff;
+  --primary:#6ea8fe;
+  --accent:#86ffda;
+  --danger:#ff7b86;
+  --ok:#38d39f;
+}
+
+*{ box-sizing:border-box }
+
+/* Base */
+body{
+  margin:0;
+  font-family:Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+  background:
+    radial-gradient(1200px 800px at 80% -10%, #1e2a56 0%, transparent 60%),
+    radial-gradient(800px 600px at -10% 110%, #1b3659 0%, transparent 60%),
+    var(--bg);
+  color:var(--text);
+  line-height:1.55;
+}
+.wrap{ max-width:960px; margin:24px auto; padding:12px; }
+
+.card{
+  background:linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  border:1px solid rgba(255,255,255,0.08);
+  backdrop-filter: blur(6px);
+  border-radius:24px;
+  padding:24px;
+  box-shadow:0 20px 50px rgba(0,0,0,.35);
+}
+.card.inner{
+  background:#0f1732;
+  border:1px solid rgba(255,255,255,.06);
+}
+
+h1{
+  font-size:clamp(20px,4.8vw,34px);
+  margin:0 0 20px;
+  line-height:1.25;
+}
+p.lead{
+  color:var(--muted);
+  margin-top:20px;        /* ✔ px қосылды */
+  text-align:center;
+}
+
+.row{ display:flex; gap:16px; flex-wrap:wrap; }
+.grow{ flex:1 1 280px; }
+
+.switch{ display:inline-flex; align-items:center; gap:10px; user-select:none; }
+.switch input{ display:none; }
+.toggle{
+  width:54px; height:30px; border-radius:999px;
+  background:#2a355f; position:relative; transition:.2s;
+}
+.toggle::after{
+  content:""; position:absolute; width:22px; height:22px;
+  border-radius:50%; background:white; left:4px; top:4px; transition:.2s;
+}
+input:checked + .toggle{ background:#3559f3; }
+input:checked + .toggle::after{ left:28px; }
+
+.btn{
+  appearance:none; border:0; cursor:pointer;
+  border-radius:14px; padding:14px 18px; font-weight:700; width:100%;
+}
+.btn.primary{ background:linear-gradient(180deg,#6ea8fe,#517cfe); color:#fff; }
+.btn.ghost{ background:transparent; color:var(--text); border:1px solid rgba(255,255,255,.14); }
+.btn:disabled{ opacity:.5; cursor:not-allowed; }
+
+.progress{ height:10px; background:#202a50; border-radius:999px; overflow:hidden; }
+.bar{ height:100%; background:linear-gradient(90deg,#6ea8fe,#86ffda); width:0%; transition:width .3s; }
+
+/* Scale options */
+.scale{ display:grid; grid-template-columns:1fr; gap:10px; margin-top:18px; }
+.opt{
+  background:#1a2447; border:1px solid rgba(255,255,255,.08);
+  border-radius:14px; padding:14px 12px; text-align:center;
+  cursor:pointer; position:relative;
+}
+.opt input{ position:absolute; inset:0; opacity:0; cursor:pointer; }
+.opt.active{ outline:2px solid #6ea8fe; background:#18234d; }
+
+/* Text helpers */
+.muted{
+  color:var(--muted);      /* ✔ дұрыс жазылды */
+  text-align:left;
+}
+.pill{
+  display:inline-flex; align-items:center; gap:8px;
+  background:#1b2a4b; border:1px solid rgba(255,255,255,.08);
+  padding:6px 10px; border-radius:999px; color:#cfe0ff;
+}
+.grid{ display:grid; gap:16px; }
+.hidden{ display:none; }
+.result-grid{ display:grid; grid-template-columns:1fr; gap:16px; }
+
+/* Header / Logo / Title */
+.header-row{ display:flex; align-items:center; gap:12px; }
+
+.logo{
+  width:100px;            /* ✔ дубликаттарды алып тастадық */
+  height:100px;
+  border-radius:20px;
+  display:flex; align-items:center; justify-content:center;
+  background:none;
+}
+.logo img{
+  max-width:100%;         /* ✔ 120% емес */
+  max-height:100%;
+  display:block;
+}
+
+.brand{
+  font-size:22px;
+  font-weight:700;
+  color:#fff;
+}
+.tagline{
+  text-align:center;      /* ✔ оңға емес, орталық */
+  font-size:18px;
+  color:#a9b4d0;
+  margin-top:4px;
+  margin-left:50px;
+}
+
+.centered{
+  text-align:center;
+  margin-top:20px;
+  margin-bottom:20px;
+  font-size:28px;
+  line-height:1.5;
+}
+
+/* Bar chart */
+.bars{ display:grid; gap:10px; }
+.barrow{ display:grid; grid-template-columns:150px 1fr 60px; align-items:center; gap:12px; }
+.bartrack{ height:14px; background:#1a2450; border-radius:999px; overflow:hidden; }
+.barfill{ height:100%; background:linear-gradient(90deg,#6ea8fe,#86ffda); width:0%; }
+.badge{ font-size:12px; border:1px solid rgba(255,255,255,.12); padding:3px 8px; border-radius:999px; color:#a6b7ff; }
+.tip{ font-size:14px; color:#b6c2e8; }
+.footer{ opacity:.7; font-size:12px; margin-top:24px; }
+
+
+/* Responsive */
+@media (min-width:640px){
+  .scale{ grid-template-columns:repeat(3,1fr); }
+}
+@media (min-width:900px){
+  .result-grid{ grid-template-columns:1.1fr .9fr; }
+}
+@media (max-width:480px){
+  .logo{ width:72px; height:72px; }
+  .centered{ font-size:22px; margin-left:0; }
+  .tagline{ font-size:14px; margin-left:0; text-align:center; }
+  .row{ gap:8px; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce){
+  .bar, .barfill{ transition:none !important; }
+}
+
+/* Print */
+@media print{
+  body{ background:#fff; color:#000; }
+  .wrap{ max-width:800px; }
+  #screen-start, #screen-quiz, .footer, .btn, .pill, .progress{ display:none !important; }
+  #screen-result{ display:block !important; }
+  .card{ box-shadow:none; border:0; padding:0; }
+}
+
+/* =========================
+   Responsive — Unified Scheme
+   Order: Desktop (base) → Tablet ≤768 → Mobile ≤480
+   ========================= */
+
+/* Desktop (base) — сіздің бар стильдеріңіз */
+@media (min-width:900px){
+  /* Нәтиже торы: 2 баған */
+  .result-grid{ grid-template-columns:1.1fr .9fr; }
+}
+/* Қаласаңыз, ≥640px үшін бар ережені қалдырыңыз:
+   .scale{ grid-template-columns:repeat(3,1fr); }
+*/
+
+/* Tablet (<=768px) */
+@media (max-width:768px){
+
+  /* Лого орташа */
+  .logo{
+    width:80px;
+    height:80px;
+  }
+  .logo img{
+    max-width:95%;
+    max-height:95%;
+  }
+
+  /* Слоган */
+  .tagline{
+    font-size:15px;
+    margin-top:6px;
+    text-align:center;
+  }
+
+  /* Тақырып */
+  .centered{
+    font-size:24px;
+    margin:18px 0;
+    line-height:1.4;
+  }
+
+  /* Батырмалар */
+  .btn{
+    padding:12px 16px;
+    font-size:15px;
+  }
+
+  /* Опциялар (радио) */
+  .opt{
+    font-size:15px;
+    padding:12px;
+  }
+
+  /* Жауап шкаласын 2 бағанға бөлу (кең планшетке ыңғайлы) */
+  .scale{
+    grid-template-columns:repeat(2,1fr);
+  }
+
+  /* Нәтиже торы — бір баған */
+  .result-grid{
+    grid-template-columns:1fr;
+  }
+
+  /* Диаграмма жолдары тығызырақ */
+  .barrow{
+    grid-template-columns:120px 1fr 50px;
+    gap:8px;
+  }
+
+  /* Карточкалар padding */
+  .card{
+    padding:18px;
+  }
+
+  /* Жолдар арасы */
+  .row{ gap:12px; }
+}
+
+/* Mobile (<=480px) */
+@media (max-width:480px){
+
+  /* Лого ықшам */
+  .logo{
+    width:70px;
+    height:70px;
+  }
+  .logo img{
+    max-width:90%;
+    max-height:90%;
+  }
+
+  /* Слоган */
+  .tagline{
+    font-size:14px;
+    margin:8px 0 0 0;
+    text-align:center;
+  }
+
+  /* Тақырып */
+  .centered{
+    font-size:20px;
+    margin:16px 0;
+    line-height:1.4;
+  }
+
+  /* Батырмалар */
+  .btn{
+    padding:12px 14px;
+    font-size:14px;
+  }
+
+  /* Опциялар */
+  .opt{
+    padding:10px;
+    font-size:14px;
+  }
+
+  /* Жолдар арасын кішірейту */
+  .row{ gap:8px; }
+
+  /* Диаграмма жолдарын бір бағанға түсіру */
+  .barrow{
+    grid-template-columns:1fr;
+    gap:6px;
+  }
+  .barrow div:last-child{
+    text-align:left; /* пайызы сол жақта */
+  }
+
+  /* Карточкалар ықшам */
+  .card{
+    padding:16px;
+  }
+
+  /* Жауап шкаласы — бір баған */
+  .scale{
+    grid-template-columns:1fr;
+  }
+}

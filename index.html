@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Meyram — Қош келдіңіз! Домен-тест (20 сұрақ)</title>
+
+  <!-- ✔ Салыстырмалы жолдар -->
+  <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/css/styles.css">
+
+  <meta name="description" content="Мейрам киностудиясы: қысқартылған домен-тест (20 сұрақ). Стратегиялық ойлау, қарым-қатынас, орындау, әсер ету домендері бойынша нәтиже.">
+
+  <!-- ✔ Жедел override-тар: лого өлшемі, орталау, инпут стилі -->
+  <style>
+    .header-row{display:flex;align-items:center;gap:12px}
+    .logo{
+      width:96px;height:96px;border-radius:20px;
+      background:none !important;
+      display:flex;align-items:center;justify-content:center;
+    }
+    .logo img{max-width:100%;max-height:100%;display:block}
+    .centered{text-align:center}
+    .tagline{ text-align:center; font-size:16px; line-height:1.5; color:var(--muted) }
+
+    /* Маман өрісі */
+    .field label{display:block;text-align:center;margin-bottom:10px;font-weight:600}
+    .expert-input{
+      width:100%;padding:12px 14px;border-radius:10px;
+      border:1px solid rgba(255,255,255,.2);
+      background:#fafafc;color:#0f0707;
+      font-size:16px;font-style:black;text-align:center;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card" id="screen-start">
+      <div class="row" style="align-items:center;gap:12px;margin-bottom:10px">
+        <div class="header-row">
+          <div class="logo">
+            <img src="assets/img/logo.png" alt="Meyram Logo">
+          </div>
+          <div>
+            <div class="tagline">Балалардың шығармашылығын аша отырып, тұлға болуына қызмет етеміз</div>
+          </div>
+        </div>
+      </div>
+
+      <h1 class="centered">
+        Мейрам компаниясына қош келдіңіз! 🎬<br>
+        Қысқартылған домен-тест — 20 сұрақ
+      </h1>
+
+      <p class="lead">Бұл шағын тест сіздің күшті жағыңызды анықтауға көмектеседі. 4 домен бойынша нәтижені бірден көрсетеміз: <strong>Мышление</strong>, <strong>Отношения</strong>, <strong>Достигаторство</strong>, <strong>Влияние</strong>.</p>
+
+      <div class="row">
+        <div class="grow">
+          <div class="grid">
+            <div class="pill">⏱ 20 секундтық таймер опционал</div>
+            <label class="switch">
+              <input type="checkbox" id="timerToggle" />
+              <span class="toggle"></span>
+              <span>Таймер (20 сек/сұрақ)</span>
+            </label>
+            <span class="muted">Жауаптарыңыз интуитивті болуы үшін таймерді қоса аласыз. Таймер қосулы болса, уақыт біткенде келесі сұраққа автоматты өтеді.</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="height:30px"></div>
+
+      <!-- ✔ Маманның аты-жөні -->
+      <div class="field">
+        <label for="expertName">Маманның аты-жөні:</label>
+        <input
+          type="text"
+          id="expertName"
+          class="expert-input"
+          placeholder="Атыңызды енгізіңіз"
+          autocomplete="name"
+          autocapitalize="words"
+        />
+      </div>
+
+      <div style="height:30px"></div>
+
+      <button class="btn primary" id="btnStart">Тестті бастау</button>
+    </div>
+
+    <div class="card hidden" id="screen-quiz">
+      <div class="row" style="align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div class="pill" id="qCounter" role="status" aria-live="polite" aria-atomic="true">📋 Сұрақ 1 / 20</div>
+        <div class="pill" id="timerPill" style="display:none">⏱ <span id="timer" aria-live="polite" aria-atomic="true">20</span> с</div>
+      </div>
+      <div class="progress" aria-hidden="true"><div class="bar" id="progress"></div></div>
+      <div style="height:16px"></div>
+      <h2 id="qText" style="margin:0 0 8px"></h2>
+      <p class="muted" id="qHint">Таңдаңыз: қаншалықты сәйкес келеді?</p>
+      <div class="scale" id="scale" role="radiogroup">
+        <!-- options rendered by JS -->
+      </div>
+      <div class="row" style="margin-top:14px;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <button class="btn ghost" id="btnBack">← Алдыңғы</button>
+        <div class="row" style="gap:10px;flex:1">
+          <button class="btn ghost" id="btnSkip">Өткізу</button>
+          <button class="btn primary" id="btnNext">Келесі →</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card hidden" id="screen-result">
+      <h1>Нәтиже</h1>
+      <!-- ✔ Маман аты нәтиже бетінде -->
+      <p id="expertDisplay" class="lead" style="margin-top:0"></p>
+
+      <div class="result-grid">
+        <div class="card inner">
+          <h3 id="topTitle" style="margin-top:0"></h3>
+          <p id="topDesc" class="tip"></p>
+          <div class="bars" id="bars"></div>
+        </div>
+        <div class="card inner">
+          <h3 style="margin-top:0">Түсіндірме</h3>
+          <div id="explain" class="grid"></div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:14px;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <button class="btn ghost" id="btnReview">Жауаптарды қарау</button>
+        <div class="row" style="gap:10px;flex:1">
+          <button class="btn ghost" id="btnRestart">Қайта бастау</button>
+          <button class="btn primary" id="btnExport">PDF ретінде сақтау</button>
+        </div>
+      </div>
+      <div class="footer">Бұл қысқартылған сынама Gallup® ресми тестін алмастырмайды. Мақсаты — домен-бағытты болжамды анықтау.</div>
+    </div>
+  </div>
+
+  <!-- ✔ Салыстырмалы жол -->
+  <script src="assets/js/app.js" defer></script>
+</body>
+</html>
