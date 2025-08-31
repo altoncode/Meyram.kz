@@ -82,20 +82,29 @@ function blobToDataURL(blob){
   return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(blob); });
 }
 
-// === CORS-safe upload: no-cors + кейін жаңа табта ашу ===================
+// === CORS-safe upload: sendBeacon -> fetch(no-cors) =====================
 async function uploadPdfToDrive(pdfBlob, meta={}, filename){
   const dataURL = await blobToDataURL(pdfBlob);
   const payload = { filename: filename || `meyram-${Date.now()}.pdf`, mimeType:'application/pdf', base64: dataURL, meta };
   const url = GAS_ENDPOINT + '?secret=' + encodeURIComponent(GAS_SECRET);
+  const bodyStr = JSON.stringify(payload);
 
-  // CORS-ты айналып өту: жауапты оқымаймыз (opaque)
+  // 1) sendBeacon — ең сенімді фондық жіберу (жауап оқылмайды)
+  if (navigator.sendBeacon) {
+    const beaconBlob = new Blob([bodyStr], { type: 'text/plain;charset=utf-8' });
+    const ok = navigator.sendBeacon(url, beaconBlob);
+    if (ok) return { ok:true, method:'beacon' };
+    // құламағанмен, кей браузерлер false қайтаруы мүмкін — fetch-пен жалғастырамыз
+  }
+
+  // 2) Фолбэк: CORS-сыз fetch
   await fetch(url, {
     method: 'POST',
     mode: 'no-cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(payload)
+    body: bodyStr
   });
-  return { ok:true };
+  return { ok:true, method:'fetch' };
 }
 
 async function makePdfFromDom(selector, { margin=10 }={}){
@@ -141,8 +150,7 @@ function renderQuestion(){
       $$('.opt').forEach(el=>{ el.classList.remove('active'); el.setAttribute('aria-checked','false'); });
       opt.classList.add('active'); opt.setAttribute('aria-checked','true');
       saveState();
-      // автокөшу тек таймер қосулы кезде
-      if(useTimer) setTimeout(()=>move(1),120);
+      if(useTimer) setTimeout(()=>move(1),120); // автокөшу тек таймер қосулыда
     });
 
     opt.addEventListener('click',()=>input.click());
@@ -238,43 +246,27 @@ async function exportPDF(){
     generatedAt: new Date().toISOString()
   };
 
-  // Попап-блокерге түспеу үшін жаңа табты алдын ала ашып қоямыз
-  const win = window.open('about:blank', '_blank', 'noopener');
-
-  // Печать диалогы: тек нәтижені көрсететін @media print стильдері index.html-да болуы керек
-  try { window.print(); } catch(_) {}
-
-  // Кітапханалар бар-жоғын тексеру
+  // DOM -> PDF Blob (локалға сақтамаймыз!)
+  // Принт диалогы JS-ті "тоқтатады", сондықтан алдымен Blob жасап жіберіп жібереміз
   if (typeof html2canvas !== 'function' || !window.jspdf?.jsPDF) {
-    console.error('html2canvas/jsPDF жүктелмеген.');
-    if (win && !win.closed) win.document.write('<p style="font:14px/1.4 sans-serif">Қате: PDF кітапханалары жүктелмеген.</p>');
+    alert('PDF кітапханалары жүктелмеген. Қайталап көріңіз.');
     return;
   }
-
-  // DOM -> PDF Blob (локалға сақтамаймыз!)
   const pdf = await makePdfFromDom('#screen-result', { margin: 10 });
   const pdfBlob = pdf.output('blob');
 
-  // Drive-қа жіберу (CORS-сыз)
-  const latestUrl = GAS_ENDPOINT
-    + '?latest=1&secret=' + encodeURIComponent(GAS_SECRET)
-    + '&user=' + encodeURIComponent(meta.user || expert);
-
+  // Drive-қа фондық жіберу (жаңа бет ашпаймыз)
   try {
     await uploadPdfToDrive(pdfBlob, meta, fileName);
-    // Кішкене кідіріс: latest индексі жазылып үлгерсін
-    setTimeout(()=>{
-      if (win && !win.closed) win.location.href = latestUrl;
-      else window.open(latestUrl, '_blank', 'noopener');
-    }, 400);
+    // қалауыңызша кішкентай toast/alert:
+    // alert('Google Drive-қа жіберілді ✅');
   } catch (err) {
     console.error('Drive upload error:', err);
-    if (win && !win.closed) {
-      win.document.write('<p style="font:14px/1.4 sans-serif">Drive-қа жүктеу сәтсіз. Кейінірек қайталап көріңіз.</p>');
-    } else {
-      alert('Drive-қа жүктеу сәтсіз. Кейінірек қайталап көріңіз.');
-    }
+    // alert('Drive-қа жіберу сәтсіз. Кейінірек қайталап көріңіз.');
   }
+
+  // Соңында — печать диалогын ашамыз (пайдаланушы өзі PDF принтерін таңдайды)
+  try { window.print(); } catch(_) {}
 }
 
 // --- Persistence --------------------------------------------------------
@@ -309,7 +301,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   on('#btnBack','click',()=> move(-1));
-  // Талап бойынша "Skip" жоқ болса — мына жолды алып тастауға болады
   on('#btnSkip','click',()=>{ answers[current]=null; move(1); });
 
   on('#btnRestart','click',()=>{ answers.fill(null); localStorage.removeItem(LS_KEY); location.reload(); });
