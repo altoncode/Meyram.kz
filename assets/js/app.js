@@ -114,7 +114,7 @@ function renderQuestion(){
       opt.setAttribute('aria-checked','true');
       saveState();
       // Қаласаңыз, авто-келесі қосыңыз:
-      // setTimeout(() => move(1), 120);
+      setTimeout(() => move(1), 120);
     });
 
     // Click/Enter/Space → input.click() (бір қадамда таңдалады)
