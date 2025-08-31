@@ -83,23 +83,34 @@ function blobToDataURL(blob){
 }
 
 // === CORS-safe upload: sendBeacon -> fetch(no-cors). Еш жауап оқылмайды ===
-async function uploadPdfToDrive(pdfBlob, meta={}, filename){
+async function uploadPdfToDrive(pdfBlob, meta = {}, filename) {
   const dataURL = await blobToDataURL(pdfBlob);
-  const payload = { filename: filename || `meyram-${Date.now()}.pdf`, mimeType:'application/pdf', base64: dataURL, meta };
+  const payload = {
+    filename: filename || `meyram-${Date.now()}.pdf`,
+    mimeType: 'application/pdf',
+    base64: dataURL,
+    meta
+  };
   const url = GAS_ENDPOINT + '?secret=' + encodeURIComponent(GAS_SECRET);
   const bodyStr = JSON.stringify(payload);
 
+  // 1) sendBeacon – фондық жіберу
   if (navigator.sendBeacon) {
-    const ok = navigator.sendBeacon(url, new Blob([bodyStr], { type:'text/plain;charset=utf-8' }));
-    if (ok) return { ok:true, method:'beacon' };
+    const ok = navigator.sendBeacon(url, new Blob([bodyStr], { type: 'text/plain;charset=utf-8' }));
+    if (ok) return { ok: true, method: 'beacon' };
   }
+
+  // 2) Фолбэк: CORS-сыз fetch
   await fetch(url, {
-    method:'POST', mode:'no-cors',
-    headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: bodyStr
   });
-  return { ok:true, method:'fetch' };
+
+  return { ok: true, method: 'fetch' };
 }
+
 
 async function makePdfFromDom(selector, { margin=10 }={}){
   const el = document.querySelector(selector);
