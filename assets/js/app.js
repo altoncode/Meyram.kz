@@ -1,11 +1,11 @@
-// Meyram Quiz — app.js (JSONP-only; same-tab PDF embed + auto print)
+// Meyram Quiz — app.js (JSONP; same-tab EMBED print)
 'use strict';
 
-/* ===== GAS endpoint ===== */
-const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbyz7ni_7bKpkMWQHHw8MvncePCBJsi5axTT8R_sl68ovSpTxyCQOGmzVSQJiZ4qq0j9/exec';
+/* GAS endpoint */
+const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwa_9S60cxABjdsw-NWBG1BvS-lBvYNVgeVnJMM7lHxtUP3l2XudPdaUj2Nf-GEwvv6/exec';
 const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
 
-/* ===== Quiz data ===== */
+/* Data */
 const DOMAINS = {
   TH:{ name:'Мышление (Стратегиялық ойлау)', color:'#86ffda', desc:'Идеялар, талдау, болашақты көру, стратегия құруға бейім.' },
   RB:{ name:'Отношения (Қарым-қатынас)',      color:'#6ea8fe', desc:'Команданы біріктіріп, сенім орнатады, эмпатиясы жоғары.' },
@@ -35,16 +35,15 @@ const QUESTIONS = [
   { t:'Жаңа бастаманы бастауға өзгелерді ерте аламын.', d:'IN' }
 ];
 
-/* ===== State ===== */
+/* State */
 let current = 0;
-const answers = new Array(QUESTIONS.length).fill(null); // 0..4, null=skip
+const answers = new Array(QUESTIONS.length).fill(null);
 let useTimer = false, timerId = null;
 const PER_Q = 20;
 
-let LAST_PDF = null;       // { url, downloadUrl, gviewUrl, id, name }
-let CREATE_PROMISE = null; // duplicate protection
+let LAST_PDF = null;       // {fileId, fileUrl, downloadUrl, gviewUrl, name}
+let CREATE_PROMISE = null;
 
-/* ===== Helpers ===== */
 const $ = s => document.querySelector(s);
 function on(sel, ev, fn){ const el=$(sel); if(el) el.addEventListener(ev, fn); }
 function show(id){ ['#screen-start','#screen-quiz','#screen-result'].forEach(s=>$(s)?.classList.add('hidden')); $(id)?.classList.remove('hidden'); }
@@ -55,11 +54,12 @@ function sanitizeFilename(name){
 }
 function uid(){ return Math.random().toString(16).slice(2)+Math.random().toString(16).slice(2); }
 function setButtonsEnabled(flag){
-  $('#btnExport') && ($('#btnExport').disabled = !flag);
-  $('#btnSend')   && ($('#btnSend').disabled   = !flag);
+  const e=$('#btnExport'), s=$('#btnSend');
+  if (e) e.disabled = !flag;
+  if (s) s.disabled = !flag;
 }
 
-// JSONP
+/* JSONP */
 function jsonp(url){
   return new Promise((resolve)=>{
     const cb='__CB_'+uid();
@@ -82,7 +82,7 @@ function buildCreateUrl(expert, answersArr){
   return `${GAS_ENDPOINT}?${qs}`;
 }
 
-/* ===== Quiz render ===== */
+/* Quiz UI */
 function renderQuestion(){
   const q = QUESTIONS[current];
   $('#qText').textContent = q.t;
@@ -98,7 +98,7 @@ function renderQuestion(){
     btn.type='button';
     btn.className='opt';
     btn.textContent = lab;
-    btn.style.color = '#fff'; // ақ мәтін (фонда жоғалмас үшін)
+    btn.style.color = '#fff'; // ақ мәтін
     if (answers[current]===idx) btn.classList.add('active');
     btn.addEventListener('click', ()=>{
       answers[current]=idx;
@@ -117,7 +117,7 @@ function move(d){
   stopTimer();
   current += d;
   if (current<0) current=0;
-  if (current>=QUESTIONS.length){ finishQuiz(); return; } // серверде PDF жасап, содан кейін нәтиже
+  if (current>=QUESTIONS.length){ finishQuiz(); return; }
   renderQuestion();
 }
 function startTimer(sec, onDone){
@@ -139,7 +139,7 @@ function compute(){
   return { raw, norm, top };
 }
 
-/* ===== Waiting → create PDF → then render result ===== */
+/* Waiting → create → render result */
 function showWaiting(){
   show('#screen-result');
   $('#expertDisplay').textContent = '';
@@ -175,7 +175,7 @@ function renderResultContent(){
   setButtonsEnabled(!!LAST_PDF);
 }
 async function ensurePdfCreated(){
-  if (LAST_PDF && LAST_PDF.downloadUrl) return LAST_PDF;
+  if (LAST_PDF && LAST_PDF.fileId) return LAST_PDF;
   if (CREATE_PROMISE) return CREATE_PROMISE;
 
   const expert = sanitizeFilename(
@@ -186,101 +186,45 @@ async function ensurePdfCreated(){
   const url = buildCreateUrl(expert, answers);
   CREATE_PROMISE = jsonp(url).then(resp=>{
     CREATE_PROMISE = null;
-    if (resp && resp.ok) {
-      LAST_PDF = {
-        url: resp.fileUrl,
-        downloadUrl: resp.downloadUrl,
-        gviewUrl: resp.gviewUrl,
-        id: resp.fileId,
-        name: resp.name
-      };
-      return LAST_PDF;
-    }
-    LAST_PDF = null; return null;
+    LAST_PDF = (resp && resp.ok) ? resp : null;
+    return LAST_PDF;
   });
   return CREATE_PROMISE;
 }
 async function finishQuiz(){
-  showWaiting();            // 1) күту экраны
+  showWaiting();
   LAST_PDF = null;
-  await ensurePdfCreated(); // 2) сервер PDF жасайды/сақтайды
-  renderResultContent();    // 3) содан кейін нақты нәтиже
+  await ensurePdfCreated();
+  renderResultContent();
 }
 
-/* ===== Export / Send actions ===== */
-/* ✔ SAME-TAB EMBED:
-   - жаңа таб ашпаймыз;
-   - құжатты осы беттің document-ін толық алмастырамыз;
-   - <embed src="..."> көрсетеміз;
-   - 900ms кейін window.print() шақырамыз;
-   - Егер embed рендерлемесе, 3.5 секундтан соң gviewUrl немесе fileUrl-ға ауысамыз.
-*/
+/* Actions */
+// SAME-TAB embed + auto print (GAS mode=embed)
 async function onExportPdf(){
   const pdf = await ensurePdfCreated();
-  if (!pdf || !(pdf.downloadUrl || pdf.url)) {
-    alert('PDF дайын емес. Кейін қайталап көріңіз.');
-    return;
-  }
-  const src = pdf.downloadUrl || pdf.url;
-  const fallback = pdf.gviewUrl || pdf.url;
-
-  const html = `<!doctype html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${(pdf.name||'PDF').replace(/</g,'&lt;')}</title>
-<style>
-  html,body{margin:0;height:100%;background:#000}
-  .wrap{position:fixed;inset:0}
-  embed{width:100%;height:100%;border:0}
-</style>
-</head><body>
-  <div class="wrap">
-    <embed id="pdf" src="${src}#view=FitH" type="application/pdf">
-  </div>
-  <script>
-    setTimeout(function(){ try{ window.focus(); window.print(); }catch(e){} }, 900);
-    setTimeout(function(){
-      try {
-        var el = document.getElementById('pdf');
-        var ok = el && el.clientHeight>0;
-        if (!ok) location.replace(${JSON.stringify(fallback)});
-      } catch(e){}
-    }, 3500);
-  <\/script>
-</body></html>`;
-
-  document.open(); document.write(html); document.close();
+  if (!pdf || !pdf.fileId) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
+  const embedUrl = `${GAS_ENDPOINT}?mode=embed&secret=${encodeURIComponent(GAS_SECRET)}&id=${encodeURIComponent(pdf.fileId)}`;
+  location.assign(embedUrl); // жаңа таб емес, осы бетке ауысу
 }
 
-// Жіберу: Web Share API → WhatsApp fallback (бетке сілтеме шығармаймыз)
+// Share: Web Share → WhatsApp fallback (бетке сілтеме шығармаймыз)
 async function onSendPdf(){
   const pdf = await ensurePdfCreated();
-  if (!pdf || !pdf.url) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
+  if (!pdf || !pdf.fileUrl) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
 
   const title='Meyram — домен-тест нәтижесі';
   const text ='Нәтиже PDF:';
-  const url  = pdf.url;
+  const url  = pdf.fileUrl;
 
   if (navigator.share) {
     try { await navigator.share({ title, text, url }); return; }
-    catch(_) {/* fallback */ }
+    catch(_) {}
   }
   const wa = 'https://wa.me/?text=' + encodeURIComponent(`${title}\n${url}`);
   window.open(wa, '_blank', 'noopener');
 }
 
-/* ===== UI glue ===== */
-function renderQuestionShortcuts(){
-  document.addEventListener('keydown',(e)=>{
-    if($('#screen-quiz')?.classList.contains('hidden')) return;
-    if (['1','2','3','4','5'].includes(e.key)){
-      answers[current]=Number(e.key)-1;
-      renderQuestion();
-      if (useTimer) setTimeout(()=>move(1),120);
-    }
-    if (e.key==='ArrowRight') move(1);
-    if (e.key==='ArrowLeft')  move(-1);
-  });
-}
+/* Wiring */
 function wireUi(){
   on('#btnStart','click', ()=>{
     useTimer = !!($('#timerToggle') && $('#timerToggle').checked);
@@ -301,9 +245,17 @@ function wireUi(){
   on('#btnRestart','click', ()=>{ answers.fill(null); location.reload(); });
 
   on('#btnExport','click', onExportPdf);
-  on('#btnSend','click',   onSendPdf);
+  on('#btnSend'  ,'click', onSendPdf);
 
-  renderQuestionShortcuts();
+  document.addEventListener('keydown',(e)=>{
+    if($('#screen-quiz')?.classList.contains('hidden')) return;
+    if (['1','2','3','4','5'].includes(e.key)){
+      answers[current]=Number(e.key)-1;
+      renderQuestion();
+      if (useTimer) setTimeout(()=>move(1),120);
+    }
+    if (e.key==='ArrowRight') move(1);
+    if (e.key==='ArrowLeft')  move(-1);
+  });
 }
-
 document.addEventListener('DOMContentLoaded', wireUi);
