@@ -158,27 +158,77 @@ function showWaiting(){
 }
 function renderResultContent(){
   const { norm, top } = compute();
+
+  // Маман аты
   const name = $('#expertName')?.value?.trim() || '';
   $('#expertDisplay').textContent = name ? `Маман: ${name}` : '';
+
+  // Басым домен тақырыбы
   const topNames = top.map(k=>DOMAINS[k].name).join(' + ');
   $('#topTitle').textContent = `Басым домен: ${topNames}`;
   $('#topDesc').textContent  = top.length>1
     ? 'Екі (немесе одан да көп) доменіңіз тең дәрежеде күшті көрінеді — бұл жан-жақтылықты білдіреді.'
     : (DOMAINS[top[0]]?.desc || '');
 
-  const bars=$('#bars'); bars.innerHTML='';
+  // Прогресс 100%
+  $('#progress').style.width='100%';
+
+  // Барлар
+  const bars=$('#bars'); 
+  bars.innerHTML='';
   ['TH','RB','EX','IN'].forEach(k=>{
     const row=document.createElement('div'); row.className='barrow';
-    const lab=document.createElement('div'); lab.innerHTML=`<span class="badge">${k}</span> ${DOMAINS[k].name}`;
+
+    const lab=document.createElement('div'); 
+    lab.innerHTML=`<span class="badge">${k}</span> ${DOMAINS[k].name}`;
+
     const track=document.createElement('div'); track.className='bartrack';
     const fill=document.createElement('div'); fill.className='barfill';
-    fill.style.background=`linear-gradient(90deg, ${DOMAINS[k].color}, #6ea8fe)`; fill.style.width='0%';
-    const pct=document.createElement('div'); pct.textContent=(norm[k]||0)+'%'; pct.style.textAlign='right';
-    track.appendChild(fill); row.append(lab,track,pct); bars.appendChild(row);
+    fill.style.background=`linear-gradient(90deg, ${DOMAINS[k].color}, #6ea8fe)`;
+    fill.style.width='0%';
+
+    const pct=document.createElement('div'); 
+    pct.textContent=(norm[k]||0)+'%'; 
+    pct.style.textAlign='right';
+
+    track.appendChild(fill); 
+    row.append(lab,track,pct); 
+    bars.appendChild(row);
+
     requestAnimationFrame(()=>{ fill.style.width=(norm[k]||0)+'%'; });
   });
 
-  $('#progress').style.width='100%';
+  // 🔧 ТҮСІНДІРМЕ – осы блок бұрын жоқ болған
+  const ex = $('#explain');
+  ex.innerHTML = '';
+
+  const SUG = {
+    TH:'Аналитик, стратег, сценарий архитектор, R&D, дерекке негізделген шешімдер.',
+    RB:'Команда коучы, HR/қабылдау, қауымдастық жетекшісі, ата-аналармен байланыс.',
+    EX:'Операциялық менеджер, продюсер, жобаны жеткізу, стандарттар мен KPI.',
+    IN:'Маркетинг/PR, сахналық жүргізуші, сату көшбасшысы, қоғам алдында сөйлеу.'
+  };
+
+  ['TH','RB','EX','IN'].forEach(k=>{
+    const wrap = document.createElement('div');
+    wrap.style.margin = '10px 0';
+
+    const pill = document.createElement('div');
+    pill.className = 'pill';
+    pill.textContent = DOMAINS[k].name;
+
+    const tip = document.createElement('div');
+    tip.className = 'tip';
+    // Қара фонда анық көрінсін:
+    tip.style.color = '#e9edf6';
+    tip.style.lineHeight = '1.55';
+    tip.innerHTML = `${DOMAINS[k].desc}<br><strong>Ұсынылатын рөлдер:</strong> ${SUG[k]}`;
+
+    wrap.append(pill, tip);
+    ex.appendChild(wrap);
+  });
+
+  // Батырмалар PDF дайын болғаннан кейін ғана белсенді
   setButtonsEnabled(!!LAST_PDF);
 }
 async function ensurePdfCreated(){
