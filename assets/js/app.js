@@ -1,4 +1,4 @@
-// Meyram Quiz — app.js (JSONP + same-tab inline PDF)
+// Meyram Quiz — app.js (JSONP + same-tab inline PDF + auto print)
 'use strict';
 
 const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzeWY0G_pM-Vx3YIliBYFpsH_XZCD49QBT8Y207yxlaO_siAFXq8-4louGNboWMBBbV/exec';
@@ -10,6 +10,7 @@ const DOMAINS = {
   EX:{ name:'Достигаторство (Орындау)',       color:'#c8a5ff', desc:'Жоспарды жүйелі орындайды, тәртіп пен дедлайнға сүйенеді.' },
   IN:{ name:'Влияние (Әсер ету)',             color:'#ffd28a', desc:'Көшбасшылық көрсетеді, көпшілікке ойды жеткізе алады.' }
 };
+
 const QUESTIONS = [
   { t:'Маған ойлануға, жалғыз отырып жоспар құруға уақыт қажет.', d:'TH' },
   { t:'Жаңа идеялар ойлап табу мені шабыттандырады.', d:'TH' },
@@ -18,7 +19,7 @@ const QUESTIONS = [
   { t:'Болашақ туралы стратегия құру маған қуат береді.', d:'TH' },
   { t:'Мен адамдарды біріктіріп, жылы атмосфера жасағанды жақсы көремін.', d:'RB' },
   { t:'Командадағы достық маған нәтижеден де маңызды.', d:'RB' },
-  { t:'Адамдардың сезімін тез түсінемін.', d:'RB' },
+  { t:'Адамдардың сезінін тез түсінемін.', d:'RB' },
   { t:'Біреуге қолдау көрсеткенде өзімді бақытты сезінемін.', d:'RB' },
   { t:'Қарым-қатынаста сенім – мен үшін ең бастысы.', d:'RB' },
   { t:'Жоспар құрсам, міндетті түрде соңына дейін жеткіземін.', d:'EX' },
@@ -39,7 +40,7 @@ const answers = new Array(QUESTIONS.length).fill(null);
 let useTimer = false, timerId = null;
 const PER_Q = 20;
 
-let LAST_PDF = null;    // {fileId,fileUrl,downloadUrl,name}
+let LAST_PDF = null;      // { ok, fileId, fileUrl, name }
 let CREATE_PROMISE = null;
 
 const $ = s => document.querySelector(s);
@@ -58,11 +59,12 @@ function jsonp(url){
   return new Promise((resolve)=>{
     const cb='__CB_'+uid();
     window[cb] = (data)=>{ try{ resolve(data); } finally { delete window[cb]; } };
-    const s=document.createElement('script');
-    s.src = url + (url.includes('?')?'&':'?') + 'callback=' + encodeURIComponent(cb);
-    s.async = true;
-    s.onerror = ()=> resolve({ ok:false, error:'Network' });
-    document.head.appendChild(s);
+    const sc=document.createElement('script');
+    sc.src = url + (url.includes('?')?'&':'?') + 'callback=' + encodeURIComponent(cb);
+    sc.async = true;
+    sc.onerror = ()=> resolve({ ok:false, error:'Network' });
+    sc.onload  = ()=> { try{ document.head.removeChild(sc); } catch(_){} };
+    document.head.appendChild(sc);
   });
 }
 function buildCreateUrl(expert, answersArr){
@@ -92,7 +94,9 @@ function renderQuestion(){
     btn.type='button';
     btn.className='opt';
     btn.textContent = lab;
-    btn.style.color = '#fff'; // ақ мәтін
+    // мәтіннің ақ түсін күшпен береміз (фон қара болса да көрінеді)
+    btn.style.setProperty('color', '#fff', 'important');
+
     if (answers[current]===idx) btn.classList.add('active');
     btn.addEventListener('click', ()=>{
       answers[current]=idx;
@@ -180,6 +184,10 @@ async function ensurePdfCreated(){
   const url = buildCreateUrl(expert, answers);
   CREATE_PROMISE = jsonp(url).then(resp=>{
     CREATE_PROMISE = null;
+    // fileUrl болмаған жағдайда өзіміз құрап қоямыз
+    if (resp && resp.ok && !resp.fileUrl && resp.fileId) {
+      resp.fileUrl = 'https://drive.google.com/file/d/'+resp.fileId+'/view?usp=drivesdk';
+    }
     LAST_PDF = (resp && resp.ok) ? resp : null;
     return LAST_PDF;
   });
@@ -192,15 +200,28 @@ async function finishQuiz(){
   renderResultContent();
 }
 
+/* ---- Export / Send ---- */
+// Same-tab inline PDF + авто-print. Ешқандай жаңа таб жоқ.
 async function onExportPdf(){
-  const pdf = await ensurePdfCreated(); // JSONP mode=create → {fileId,...}
-  if (!pdf || !pdf.fileId) {
-    alert('PDF дайын емес. Кейін қайталап көріңіз.'); 
-    return;
-  }
-  // ТІКЕЛЕЙ PDF (inline). Жаңа таб ашпаймыз – дәл осы бетке көшеміз.
-  const url = `${GAS_ENDPOINT}?mode=pdf&secret=${encodeURIComponent(GAS_SECRET)}&id=${encodeURIComponent(pdf.fileId)}`;
-  location.assign(url);
+  const pdf = await ensurePdfCreated();
+  if (!pdf || !pdf.fileId) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
+
+  const pdfUrl = `${GAS_ENDPOINT}?mode=pdf&secret=${encodeURIComponent(GAS_SECRET)}&id=${encodeURIComponent(pdf.fileId)}`;
+  const html = `<!doctype html><html><head><meta charset="utf-8">
+  <title>${(pdf.name||'report')}.pdf</title>
+  <style>html,body{height:100%;margin:0}embed{width:100%;height:100%;border:0}</style>
+  </head><body>
+    <embed src="${pdfUrl}#view=FitH&toolbar=0&navpanes=0" type="application/pdf">
+    <script>
+      // PDF көрінген бойда print; print бітсе — алдыңғы бетке қайтамыз
+      window.addEventListener('load', ()=> setTimeout(()=>{ try{window.print()}catch(e){} }, 400));
+      window.onafterprint = ()=> { try{ history.back(); }catch(e){} };
+    <\/script>
+  </body></html>`;
+
+  const blobUrl = URL.createObjectURL(new Blob([html], {type:'text/html'}));
+  // дәл осы бетте ашамыз
+  location.replace(blobUrl);
 }
 
 // Share: Web Share → WhatsApp fallback (бетке сілтеме шығармаймыз)
@@ -216,7 +237,9 @@ async function onSendPdf(){
     try { await navigator.share({ title, text, url }); return; }
     catch(_) {}
   }
-  
+  // WhatsApp fallback
+  const wa = 'https://wa.me/?text=' + encodeURIComponent(`${title}\n${url}`);
+  window.open(wa, '_blank', 'noopener');
 }
 
 /* ---- Wiring ---- */
