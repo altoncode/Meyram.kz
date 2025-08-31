@@ -1,11 +1,9 @@
-// Meyram Quiz — app.js (JSONP; same-tab EMBED print)
+// Meyram Quiz — app.js (JSONP + same-tab inline PDF)
 'use strict';
 
-/* GAS endpoint */
-const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwa_9S60cxABjdsw-NWBG1BvS-lBvYNVgeVnJMM7lHxtUP3l2XudPdaUj2Nf-GEwvv6/exec';
+const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzeWY0G_pM-Vx3YIliBYFpsH_XZCD49QBT8Y207yxlaO_siAFXq8-4louGNboWMBBbV/exec';
 const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
 
-/* Data */
 const DOMAINS = {
   TH:{ name:'Мышление (Стратегиялық ойлау)', color:'#86ffda', desc:'Идеялар, талдау, болашақты көру, стратегия құруға бейім.' },
   RB:{ name:'Отношения (Қарым-қатынас)',      color:'#6ea8fe', desc:'Команданы біріктіріп, сенім орнатады, эмпатиясы жоғары.' },
@@ -35,13 +33,13 @@ const QUESTIONS = [
   { t:'Жаңа бастаманы бастауға өзгелерді ерте аламын.', d:'IN' }
 ];
 
-/* State */
+/* ---- State ---- */
 let current = 0;
 const answers = new Array(QUESTIONS.length).fill(null);
 let useTimer = false, timerId = null;
 const PER_Q = 20;
 
-let LAST_PDF = null;       // {fileId, fileUrl, downloadUrl, gviewUrl, name}
+let LAST_PDF = null;    // {fileId,fileUrl,downloadUrl,name}
 let CREATE_PROMISE = null;
 
 const $ = s => document.querySelector(s);
@@ -53,13 +51,9 @@ function sanitizeFilename(name){
   return (s || 'Маман').slice(0,80);
 }
 function uid(){ return Math.random().toString(16).slice(2)+Math.random().toString(16).slice(2); }
-function setButtonsEnabled(flag){
-  const e=$('#btnExport'), s=$('#btnSend');
-  if (e) e.disabled = !flag;
-  if (s) s.disabled = !flag;
-}
+function setButtonsEnabled(flag){ const e=$('#btnExport'), s=$('#btnSend'); if (e) e.disabled=!flag; if (s) s.disabled=!flag; }
 
-/* JSONP */
+/* ---- JSONP ---- */
 function jsonp(url){
   return new Promise((resolve)=>{
     const cb='__CB_'+uid();
@@ -82,7 +76,7 @@ function buildCreateUrl(expert, answersArr){
   return `${GAS_ENDPOINT}?${qs}`;
 }
 
-/* Quiz UI */
+/* ---- Quiz UI ---- */
 function renderQuestion(){
   const q = QUESTIONS[current];
   $('#qText').textContent = q.t;
@@ -139,7 +133,7 @@ function compute(){
   return { raw, norm, top };
 }
 
-/* Waiting → create → render result */
+/* ---- Waiting → create → render ---- */
 function showWaiting(){
   show('#screen-result');
   $('#expertDisplay').textContent = '';
@@ -198,13 +192,16 @@ async function finishQuiz(){
   renderResultContent();
 }
 
-/* Actions */
-// SAME-TAB embed + auto print (GAS mode=embed)
+/* ---- Actions ---- */
+// SAME-TAB inline PDF (плагин sandbox мәселелері жоқ)
 async function onExportPdf(){
   const pdf = await ensurePdfCreated();
   if (!pdf || !pdf.fileId) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
-  const embedUrl = `${GAS_ENDPOINT}?mode=embed&secret=${encodeURIComponent(GAS_SECRET)}&id=${encodeURIComponent(pdf.fileId)}`;
-  location.assign(embedUrl); // жаңа таб емес, осы бетке ауысу
+  const url = `${GAS_ENDPOINT}?mode=pdf&secret=${encodeURIComponent(GAS_SECRET)}&id=${encodeURIComponent(pdf.fileId)}`;
+  // Жаңа таб ашпаймыз – дәл осы бетке көшеміз.
+  location.assign(url);
+  // Ескерту: браузер өзінің PDF viewer-ін ашады. Авто-print-ті плагиндер қауіпсіздігі шектейді,
+  // сондықтан print терезесін сол viewer-ден бір рет басу қажет болуы мүмкін.
 }
 
 // Share: Web Share → WhatsApp fallback (бетке сілтеме шығармаймыз)
@@ -224,7 +221,7 @@ async function onSendPdf(){
   window.open(wa, '_blank', 'noopener');
 }
 
-/* Wiring */
+/* ---- Wiring ---- */
 function wireUi(){
   on('#btnStart','click', ()=>{
     useTimer = !!($('#timerToggle') && $('#timerToggle').checked);
