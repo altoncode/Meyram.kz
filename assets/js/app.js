@@ -101,16 +101,6 @@ async function uploadPdfToDrive(pdfBlob, meta={}, filename){
   return { ok:true, method:'fetch' };
 }
 
-  // 2) Фолбэк: CORS-сыз fetch
-  await fetch(url, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: bodyStr
-  });
-  return { ok:true, method:'fetch' };
-}
-
 async function makePdfFromDom(selector, { margin=10 }={}){
   const el = document.querySelector(selector);
   if(!el) throw new Error('Нәтиже DOM табылмады: '+selector);
@@ -255,7 +245,6 @@ async function exportPDF() {
     generatedAt: new Date().toISOString()
   };
 
-  // PDF кітапханалары бар-жоғын тексеру
   if (typeof html2canvas !== 'function' || !window.jspdf?.jsPDF) {
     alert('PDF кітапханалары жүктелмеген. Қайталап көріңіз.');
     return;
@@ -268,14 +257,11 @@ async function exportPDF() {
   // 2) Drive-қа фондық жіберу: sendBeacon -> fetch(no-cors)
   try {
     await uploadPdfToDrive(pdfBlob, meta, fileName);
-    // Тыныш режим: UI-де бет ашпаймыз. Қажет болса, қысқа toast қойсаңыз болады.
-    // console.log('Drive upload sent (silent).');
   } catch (err) {
     console.error('Drive upload error:', err);
-    // Мұнда да бет ашпаймыз.
   }
 
-  // 3) Соңында принт диалогын ашамыз (пайдаланушы PDF принтерін таңдайды)
+  // 3) Соңында принт диалогын ашамыз
   try { window.print(); } catch (_) {}
 }
 
