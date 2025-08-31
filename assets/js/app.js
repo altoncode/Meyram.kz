@@ -82,20 +82,24 @@ function blobToDataURL(blob){
   return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(blob); });
 }
 
-// === CORS-safe upload: sendBeacon -> fetch(no-cors) =====================
+// === CORS-safe upload: sendBeacon -> fetch(no-cors). Еш жауап оқылмайды ===
 async function uploadPdfToDrive(pdfBlob, meta={}, filename){
   const dataURL = await blobToDataURL(pdfBlob);
   const payload = { filename: filename || `meyram-${Date.now()}.pdf`, mimeType:'application/pdf', base64: dataURL, meta };
   const url = GAS_ENDPOINT + '?secret=' + encodeURIComponent(GAS_SECRET);
   const bodyStr = JSON.stringify(payload);
 
-  // 1) sendBeacon — ең сенімді фондық жіберу (жауап оқылмайды)
   if (navigator.sendBeacon) {
-    const beaconBlob = new Blob([bodyStr], { type: 'text/plain;charset=utf-8' });
-    const ok = navigator.sendBeacon(url, beaconBlob);
+    const ok = navigator.sendBeacon(url, new Blob([bodyStr], { type:'text/plain;charset=utf-8' }));
     if (ok) return { ok:true, method:'beacon' };
-    // құламағанмен, кей браузерлер false қайтаруы мүмкін — fetch-пен жалғастырамыз
   }
+  await fetch(url, {
+    method:'POST', mode:'no-cors',
+    headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+    body: bodyStr
+  });
+  return { ok:true, method:'fetch' };
+}
 
   // 2) Фолбэк: CORS-сыз fetch
   await fetch(url, {
@@ -226,14 +230,19 @@ function showResult(){
   show('#screen-result'); saveState();
 }
 
-// === ТЕК Drive + Печать ================================================
-async function exportPDF(){
-  // Файл атауы үшін маман атын жинау
+// === ТЕК Drive (фонда) + Печать. ЕШҚАНДАЙ window.open ЖОҚ =================
+async function exportPDF() {
+  // Қауіп үшін бұрын қойылған "Drive: ..." сілтемесін өшіреміз
+  const oldLink = document.getElementById('drive-link');
+  if (oldLink) oldLink.remove();
+
+  // Файл атауы
   let expert = (function(){
-    const a=$('#expertName')?.value?.trim(); if(a) return a;
-    const b=(window.__who&&window.__who.name)?String(window.__who.name).trim():''; if(b) return b;
-    const disp=$('#expertDisplay')?.textContent||''; const prefix='Маман:'; 
-    return disp.startsWith(prefix)?disp.slice(prefix.length).trim(): (disp.trim()||'unknown');
+    const a = $('#expertName')?.value?.trim(); if (a) return a;
+    const b = (window.__who && window.__who.name) ? String(window.__who.name).trim() : ''; if (b) return b;
+    const disp = $('#expertDisplay')?.textContent || ''; 
+    const prefix = 'Маман:'; 
+    return disp.startsWith(prefix) ? disp.slice(prefix.length).trim() : (disp.trim() || 'unknown');
   })();
   expert = sanitizeFilename(expert);
   const fileName = `${expert}_${formatDateYMD(new Date())}.pdf`;
@@ -246,27 +255,28 @@ async function exportPDF(){
     generatedAt: new Date().toISOString()
   };
 
-  // DOM -> PDF Blob (локалға сақтамаймыз!)
-  // Принт диалогы JS-ті "тоқтатады", сондықтан алдымен Blob жасап жіберіп жібереміз
+  // PDF кітапханалары бар-жоғын тексеру
   if (typeof html2canvas !== 'function' || !window.jspdf?.jsPDF) {
     alert('PDF кітапханалары жүктелмеген. Қайталап көріңіз.');
     return;
   }
+
+  // 1) DOM -> PDF (Blob). ЛОКАЛҒА САҚТАМАЙМЫЗ!
   const pdf = await makePdfFromDom('#screen-result', { margin: 10 });
   const pdfBlob = pdf.output('blob');
 
-  // Drive-қа фондық жіберу (жаңа бет ашпаймыз)
+  // 2) Drive-қа фондық жіберу: sendBeacon -> fetch(no-cors)
   try {
     await uploadPdfToDrive(pdfBlob, meta, fileName);
-    // қалауыңызша кішкентай toast/alert:
-    // alert('Google Drive-қа жіберілді ✅');
+    // Тыныш режим: UI-де бет ашпаймыз. Қажет болса, қысқа toast қойсаңыз болады.
+    // console.log('Drive upload sent (silent).');
   } catch (err) {
     console.error('Drive upload error:', err);
-    // alert('Drive-қа жіберу сәтсіз. Кейінірек қайталап көріңіз.');
+    // Мұнда да бет ашпаймыз.
   }
 
-  // Соңында — печать диалогын ашамыз (пайдаланушы өзі PDF принтерін таңдайды)
-  try { window.print(); } catch(_) {}
+  // 3) Соңында принт диалогын ашамыз (пайдаланушы PDF принтерін таңдайды)
+  try { window.print(); } catch (_) {}
 }
 
 // --- Persistence --------------------------------------------------------
