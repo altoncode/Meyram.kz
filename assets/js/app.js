@@ -1,11 +1,11 @@
-// assets/js/app.js — JSONP-only (server builds & shares PDF). No DOM->PDF.
+// Meyram Quiz — app.js (JSONP-only; no DOM->PDF)
 'use strict';
 
-/*** CONFIG ***/
+/* ===== GAS endpoint (жаңа ключ) ===== */
 const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbyw6tONB_fyKqoLj4v-J-7IOpWmsl_ucUXXo4V-RxSspp6YkHQOkvywb12CpYMyUhXc/exec';
 const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
 
-/*** DATA ***/
+/* ===== Quiz data ===== */
 const DOMAINS = {
   TH:{ name:'Мышление (Стратегиялық ойлау)', color:'#86ffda', desc:'Идеялар, талдау, болашақты көру, стратегия құруға бейім.' },
   RB:{ name:'Отношения (Қарым-қатынас)',      color:'#6ea8fe', desc:'Команданы біріктіріп, сенім орнатады, эмпатиясы жоғары.' },
@@ -35,34 +35,33 @@ const QUESTIONS = [
   { t:'Жаңа бастаманы бастауға өзгелерді ерте аламын.', d:'IN' }
 ];
 
-/*** STATE ***/
+/* ===== State ===== */
 let current = 0;
-const answers = new Array(QUESTIONS.length).fill(null);
+const answers = new Array(QUESTIONS.length).fill(null); // 0..4, null=skip
 let useTimer = false, timerId = null;
 const PER_Q = 20;
-let LAST_PDF = null;        // {url,id,name}
-let CREATE_PROMISE = null;  // in-flight guard
 
-/*** HELPERS ***/
+let LAST_PDF = null;          // { url, id, name }
+let CREATE_PROMISE = null;
+
+/* ===== Helpers ===== */
 const $ = s => document.querySelector(s);
 function on(sel, ev, fn){ const el=$(sel); if(el) el.addEventListener(ev, fn); }
-function show(id){ ['#screen-start','#screen-quiz','#screen-result'].forEach(s=>$(s)?.classList.add('hidden')); $(id)?.classList.remove('hidden'); }
+function uid(){ return Math.random().toString(16).slice(2)+Math.random().toString(16).slice(2); }
 function sanitizeFilename(name){
   let s = String(name||'').trim();
   s = s.replace(/[\/\\:\*\?"<>|\u0000-\u001F]+/g,'').replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'');
   return (s || 'Маман').slice(0,80);
 }
-function uid(){ return Math.random().toString(16).slice(2)+Math.random().toString(16).slice(2); }
-function jsonp(url, timeoutMs=15000){
+function jsonp(url){
   return new Promise((resolve)=>{
-    const cb='__CB_'+uid(); let done=false;
+    const cb='__CB_'+uid();
+    window[cb] = (data)=>{ try{ resolve(data); } finally { delete window[cb]; } };
     const s=document.createElement('script');
-    const finish = (data)=>{ if(done) return; done=true; try{ resolve(data); } finally{ delete window[cb]; try{s.remove();}catch{} } };
-    window[cb] = (data)=> finish(data);
     s.src = url + (url.includes('?')?'&':'?') + 'callback=' + encodeURIComponent(cb);
-    s.async = true; s.onerror = ()=> finish({ ok:false, error:'Network' });
+    s.async = true;
+    s.onerror = ()=> resolve({ ok:false, error:'Network' });
     document.head.appendChild(s);
-    setTimeout(()=> finish({ ok:false, error:'Timeout' }), timeoutMs);
   });
 }
 function buildCreateUrl(expert, answersArr){
@@ -75,54 +74,44 @@ function buildCreateUrl(expert, answersArr){
   ].join('&');
   return `${GAS_ENDPOINT}?${qs}`;
 }
-
-// 1) preview URL-ды минимал UI-мен берейік
-function driveEmbedUrl(pdf){
+// fileId-ті кез келген share URL-дан алу
+function extractId(url){
+  if (!url) return null;
+  let m = String(url).match(/\/d\/([a-zA-Z0-9_-]{10,})/); if (m) return m[1];
+  m = String(url).match(/[?&]id=([a-zA-Z0-9_-]{10,})/);  if (m) return m[1];
+  return null;
+}
+// ✅ Docs Viewer-ге лайық URL (iframe-ге рұқсат береді)
+function gviewUrl(pdf){
   const id = pdf?.id || extractId(pdf?.url || '');
   if (!id) return null;
-  // rm=minimal -> Drive UI азаяды (шрифттер аз жүктеледі)
-  return `https://drive.google.com/file/d/${id}/preview?rm=minimal#view=FitH`;
+  const downloadUrl = `https://drive.google.com/uc?export=download&id=${id}`;
+  return `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(downloadUrl)}#view=FitH`;
 }
-
-// 2) принт функциясы сол күйі қалады (жасырын iframe арқылы)
+// Жасырын iframe арқылы print
 function printViaHiddenIframe(url){
   const prev = document.getElementById('print-frame'); if (prev) try{prev.remove();}catch{}
+  if (!url) return;
   const f=document.createElement('iframe');
   f.id='print-frame';
   Object.assign(f.style,{position:'fixed',right:'0',bottom:'0',width:'0',height:'0',border:'0'});
   f.src = url;
-
   let fired=false;
   const go=()=>{ if(fired) return; fired=true;
     try{ f.contentWindow?.focus(); f.contentWindow?.print(); }catch{}
     setTimeout(()=>{ try{f.remove();}catch{} }, 1500);
   };
-
-  // Негізгі – onload, қосымша – safety timeout
   f.onload=()=>setTimeout(go, 300);
-  setTimeout(go, 8000);
+  setTimeout(go, 8000); // safety
   document.body.appendChild(f);
 }
 
-function driveShareUrl(pdf){
-  const id = pdf?.id || extractId(pdf?.url || '');
-  if (!id) return pdf?.url || null;
-  return `https://drive.google.com/file/d/${id}/view?usp=sharing`;
-}
-function extractId(url){
-  if (!url) return null;
-  let m = url.match(/\/file\/d\/([^/]+)/); if (m) return m[1];
-  m = url.match(/[?&]id=([^&]+)/);        if (m) return m[1];
-  m = url.match(/\/d\/([^/]+)\//);        if (m) return m[1];
-  return null;
-}
-
-/*** QUIZ RENDER ***/
+/* ===== Quiz render ===== */
 function renderQuestion(){
-  stopTimer();
   const q = QUESTIONS[current];
   $('#qText').textContent = q.t;
   $('#qCounter').textContent = `Сұрақ ${current+1} / ${QUESTIONS.length}`;
+
   const done = answers.filter(v=>v!=null).length;
   $('#progress').style.width = Math.round(done/QUESTIONS.length*100)+'%';
 
@@ -134,18 +123,20 @@ function renderQuestion(){
     btn.type='button';
     btn.className='opt';
     btn.textContent = lab;
-    btn.style.color = '#fff'; // ақ мәтін
+    // мәтін анық көрінсін
+    btn.style.color = '#fff';
     if (answers[current]===idx) btn.classList.add('active');
     btn.addEventListener('click', ()=>{
       answers[current]=idx;
       renderQuestion();
-      if (useTimer) setTimeout(()=>move(1),120);
+      if (useTimer) setTimeout(()=>move(1), 120);
     });
     scale.appendChild(btn);
   });
 
   $('#timerPill').style.display = useTimer ? 'inline-flex' : 'none';
-  if (useTimer) startTimer(PER_Q, ()=>move(1));
+  if (useTimer) startTimer(PER_Q, ()=>move(1)); else stopTimer();
+
   $('#btnBack').disabled = (current===0);
 }
 function move(d){
@@ -155,7 +146,7 @@ function move(d){
   if (current>=QUESTIONS.length){ finishQuiz(); return; }
   renderQuestion();
 }
-function startTimer(sec,onDone){
+function startTimer(sec, onDone){
   let left=sec; $('#timer').textContent=left;
   timerId=setInterval(()=>{ left--; $('#timer').textContent=left; if(left<=0){ stopTimer(); onDone&&onDone(); } },1000);
 }
@@ -165,7 +156,8 @@ function compute(){
   const per={TH:[],RB:[],EX:[],IN:[]}; QUESTIONS.forEach((q,i)=> per[q.d].push(answers[i]));
   const raw={}, norm={};
   for(const k of Object.keys(per)){
-    const arr=per[k].filter(v=>v!=null), sum=arr.reduce((a,b)=>a+Number(b),0), denom=Math.max(arr.length*4,1);
+    const arr=per[k].filter(v=>v!=null); const sum=arr.reduce((a,b)=>a+Number(b),0);
+    const denom=Math.max(arr.length*4,1);
     raw[k]=sum; norm[k]=Math.round((sum/denom)*100);
   }
   const max=Math.max(...Object.values(raw));
@@ -173,12 +165,8 @@ function compute(){
   return { raw, norm, top };
 }
 
-/*** RESULT FLOW ***/
-function setPdfUiState(state){
-  const be=$('#btnExport'), bs=$('#btnSend');
-  if (be){ be.disabled=false; be.textContent = state==='ready' ? 'PDF ретінде сақтау' : 'PDF дайындалуда…'; }
-  if (bs){ bs.disabled=false; bs.textContent = state==='ready' ? 'PDF жіберу (Drive)' : 'PDF дайындалуда…'; }
-}
+/* ===== Waiting → create PDF → then render result ===== */
+function show(id){ ['#screen-start','#screen-quiz','#screen-result'].forEach(s=>$(s)?.classList.add('hidden')); $(id)?.classList.remove('hidden'); }
 function showWaiting(){
   show('#screen-result');
   $('#expertDisplay').textContent = '';
@@ -186,7 +174,8 @@ function showWaiting(){
   $('#topDesc').textContent  = 'PDF жасалып, Google Drive-қа сақталып жатыр.';
   $('#bars').innerHTML = '';
   $('#explain').innerHTML = '';
-  setPdfUiState('pending');
+  $('#btnExport').disabled = true;
+  $('#btnSend').disabled   = true;
 }
 function renderResultContent(){
   const { norm, top } = compute();
@@ -210,19 +199,8 @@ function renderResultContent(){
     requestAnimationFrame(()=>{ fill.style.width=(norm[k]||0)+'%'; });
   });
 
-  const SUG={TH:'Аналитик, стратег, сценарий архитектор, R&D, дерекке негізделген шешімдер.',
-             RB:'Команда коучы, HR/қабылдау, қауымдастық жетекшісі, ата-аналармен байланыс.',
-             EX:'Операциялық менеджер, продюсер, жобаны жеткізу, стандарттар мен KPI.',
-             IN:'Маркетинг/PR, сахналық жүргізуші, сату көшбасшысы, қоғам алдында сөйлеу.'};
-  const ex=$('#explain'); ex.innerHTML='';
-  Object.keys(DOMAINS).forEach(k=>{
-    const div=document.createElement('div');
-    div.innerHTML=`<div class="pill">${DOMAINS[k].name}</div>
-                   <div class="tip">${DOMAINS[k].desc}<br><strong>Ұсынылатын рөлдер:</strong> ${SUG[k]}</div>`;
-    ex.appendChild(div);
-  });
-
-  setPdfUiState(LAST_PDF ? 'ready' : 'pending');
+  $('#btnExport').disabled = !LAST_PDF;
+  $('#btnSend').disabled   = !LAST_PDF;
 }
 async function ensurePdfCreated(){
   if (LAST_PDF && LAST_PDF.url) return LAST_PDF;
@@ -236,70 +214,62 @@ async function ensurePdfCreated(){
   const url = buildCreateUrl(expert, answers);
   CREATE_PROMISE = jsonp(url).then(resp=>{
     CREATE_PROMISE = null;
-    if (resp && resp.ok) { LAST_PDF = { url: resp.fileUrl, id: resp.fileId, name: resp.name }; setPdfUiState('ready'); return LAST_PDF; }
-    LAST_PDF = null; setPdfUiState('pending'); return null;
+    if (resp && resp.ok) {
+      LAST_PDF = { url: resp.fileUrl, id: resp.fileId, name: resp.name };
+      return LAST_PDF;
+    }
+    LAST_PDF = null;
+    return null;
   });
   return CREATE_PROMISE;
 }
 async function finishQuiz(){
-  showWaiting();
+  showWaiting();                 // 1) күту экраны
   LAST_PDF = null;
-  await ensurePdfCreated();
-  renderResultContent();
+  await ensurePdfCreated();      // 2) сервер PDF жасайды/сақтайды
+  renderResultContent();         // 3) содан кейін нақты нәтиже
   $('#progress').style.width='100%';
 }
 
-/*** PRINT (no popup; Drive /preview to avoid 403) ***/
-function printViaHiddenIframe(url){
-  const prev = document.getElementById('print-frame'); if (prev) try{prev.remove();}catch{}
-  const f=document.createElement('iframe');
-  f.id='print-frame';
-  Object.assign(f.style,{position:'fixed',right:'0',bottom:'0',width:'0',height:'0',border:'0'});
-  f.src = url;
-  let fired=false;
-  const go=()=>{ if(fired) return; fired=true;
-    try{ f.contentWindow?.focus(); f.contentWindow?.print(); }catch{}
-    setTimeout(()=>{ try{f.remove();}catch{} }, 1500);
-  };
-  // onload — әдетте жеткілікті; safety timeout — 8s
-  f.onload=()=>setTimeout(go,300);
-  setTimeout(go,8000);
-  document.body.appendChild(f);
-}
-
-/*** ACTIONS ***/
+/* ===== Actions ===== */
 async function onExportPdf(){
   const pdf = await ensurePdfCreated();
-  if (!pdf || !pdf.url){ alert('PDF дайындалуда. Бірер секундтан кейін қайталап көріңіз.'); return; }
+  if (!pdf || !pdf.url) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
 
-  // /view → /preview (iframe friendly). Егер файл “anyone with link” емес болса, 403 болуы мүмкін.
-  const embed = driveEmbedUrl(pdf);
-  if (!embed){ window.open(pdf.url, '_blank', 'noopener'); return; }
+  const url = gviewUrl(pdf);
+  if (!url) { window.open(pdf.url, '_blank', 'noopener'); return; }
 
-  printViaHiddenIframe(embed);
+  // ❗ жаңа таб ашпай, жасырын iframe арқылы print
+  printViaHiddenIframe(url);
 }
 async function onSendPdf(){
   const pdf = await ensurePdfCreated();
-  if (!pdf || !pdf.url){ alert('PDF дайындалуда. Бірер секундтан кейін қайталап көріңіз.'); return; }
-  const share = driveShareUrl(pdf);
-  const title='Meyram — домен-тест нәтижесі', text='Нәтиже PDF:', url=share || pdf.url;
-  if (navigator.share){ try{ await navigator.share({title, text, url}); return; }catch{} }
-  window.open('https://wa.me/?text='+encodeURIComponent(`${title}\n${url}`),'_blank','noopener');
+  if (!pdf || !pdf.url) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
+
+  const title='Meyram — домен-тест нәтижесі';
+  const text ='Нәтиже PDF:';
+  const url  = pdf.url;
+
+  if (navigator.share) {
+    try { await navigator.share({ title, text, url }); return; }
+    catch(_) {}
+  }
+  // WhatsApp fallback
+  const wa = 'https://wa.me/?text=' + encodeURIComponent(`${title}\n${url}`);
+  window.open(wa, '_blank', 'noopener');
 }
 
-/*** UI glue ***/
-function initUI(){
-  // опциялар мәтінін ақ ету
-  const style=document.createElement('style'); style.textContent='.scale .opt{color:#fff !important}'; document.head.appendChild(style);
-
+/* ===== UI glue ===== */
+function renderStart(){
   on('#btnStart','click', ()=>{
     useTimer = !!($('#timerToggle') && $('#timerToggle').checked);
-    const name=$('#expertName')?.value?.trim(); if(name){ window.__who=window.__who||{}; window.__who.name=name; }
+    const name=$('#expertName')?.value?.trim();
+    if(name){ window.__who = window.__who || {}; window.__who.name = name; }
     current=0; show('#screen-quiz'); renderQuestion();
   });
   on('#btnNext','click', ()=>{
     if (answers[current]==null){
-      const pill=$('#qHint'); if(pill){ const old=pill.textContent; pill.textContent='Алдымен жауап беріңіз 🙂'; setTimeout(()=>pill.textContent=old,1100); }
+      const pill=$('#qHint'); if (pill){ const old=pill.textContent; pill.textContent='Алдымен жауап беріңіз 🙂'; setTimeout(()=>pill.textContent=old,1200); }
       return;
     }
     move(1);
@@ -314,13 +284,12 @@ function initUI(){
   document.addEventListener('keydown',(e)=>{
     if($('#screen-quiz')?.classList.contains('hidden')) return;
     if (['1','2','3','4','5'].includes(e.key)){
-      answers[current]=Number(e.key)-1; renderQuestion(); if(useTimer) setTimeout(()=>move(1),120);
+      answers[current]=Number(e.key)-1;
+      renderQuestion();
+      if (useTimer) setTimeout(()=>move(1),120);
     }
     if (e.key==='ArrowRight') move(1);
     if (e.key==='ArrowLeft')  move(-1);
   });
-
-  document.addEventListener('visibilitychange', ()=>{ if(!useTimer) return; if(document.hidden) stopTimer(); else startTimer(PER_Q, ()=>move(1)); });
 }
-
-document.addEventListener('DOMContentLoaded', initUI);
+document.addEventListener('DOMContentLoaded', renderStart);
