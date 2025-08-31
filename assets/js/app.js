@@ -59,15 +59,15 @@ function show(id){
 
 function renderQuestion(){
   const q = QUESTIONS[current];
+
+  // Мәтіндер мен прогресс
   $('#qText').textContent = q.t;
   $('#qCounter').textContent = `Сұрақ ${current+1} / ${QUESTIONS.length}`;
-
-  // progress by answered count
   const answeredCount = answers.filter(v => v != null).length;
   const p = Math.round((answeredCount / QUESTIONS.length) * 100);
   $('#progress').style.width = p + '%';
 
-  // render scale
+  // Шкала
   const labels = [
     'Мүлде сәйкес келмейді',
     'Көбірек сәйкес келмейді',
@@ -75,39 +75,69 @@ function renderQuestion(){
     'Көбірек сәйкес келеді',
     'Өте сәйкес келеді'
   ];
+
   const scale = $('#scale');
   scale.innerHTML = '';
+  scale.setAttribute('role','radiogroup');
+  scale.setAttribute('aria-label','Бағалау шкаласы');
 
-  labels.forEach((lab, idx)=>{
-    const div = document.createElement('label');
-    div.className = 'opt';
-    if(answers[current]===idx) div.classList.add('active');
-    div.setAttribute('role','radio');
-    div.setAttribute('aria-checked', answers[current] === idx ? 'true' : 'false');
-    div.innerHTML = `${lab}<input type="radio" name="q${current}" value="${idx}">`;
-    div.addEventListener('click', ()=>{
+  labels.forEach((lab, idx) => {
+    const opt = document.createElement('div');
+    opt.className = 'opt';
+    opt.setAttribute('role','radio');
+    opt.setAttribute('aria-checked', answers[current] === idx ? 'true' : 'false');
+    opt.setAttribute('tabindex','0'); // пернетақта қолдауы
+
+    const text = document.createElement('span');
+    text.textContent = lab;
+
+    // Нақты input (iOS үшін change-ті тыңдаймыз)
+    const input = document.createElement('input');
+    input.type = 'radio';
+    input.name = `q${current}`;
+    input.value = String(idx);
+    input.tabIndex = -1; // фокусты opt алады
+    // Егер CSS-та .opt input {position:absolute; inset:0; opacity:0;} болса — ок.
+    // Қос-қадамды болдырмау үшін pointerEvents-ті сөндіреміз:
+    input.style.pointerEvents = 'none';
+
+    if (answers[current] === idx) {
+      input.checked = true;
+      opt.classList.add('active');
+    }
+
+    // Негізгі: iOS-та тұрақты жұмыс үшін change оқиғасы
+    input.addEventListener('change', () => {
       answers[current] = idx;
       $$('.opt').forEach(el => { el.classList.remove('active'); el.setAttribute('aria-checked','false'); });
-      div.classList.add('active');
-      div.setAttribute('aria-checked','true');
+      opt.classList.add('active');
+      opt.setAttribute('aria-checked','true');
       saveState();
-      // авто-келесі
-      setTimeout(()=> move(1), 120);
+      // Қаласаңыз, авто-келесі қосыңыз:
+      // setTimeout(() => move(1), 120);
     });
-    scale.appendChild(div);
+
+    // Click/Enter/Space → input.click() (бір қадамда таңдалады)
+    opt.addEventListener('click', () => input.click());
+    opt.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
+    });
+
+    opt.append(text, input);
+    scale.appendChild(opt);
   });
 
-  // Timer UI
-  if(useTimer){
-    $('#timerPill').style.display='inline-flex';
-    startTimer(PER_QUESTION, ()=>move(1));
+  // Таймер UI
+  if (useTimer) {
+    $('#timerPill').style.display = 'inline-flex';
+    startTimer(PER_QUESTION, () => move(1));
   } else {
-    $('#timerPill').style.display='none';
+    $('#timerPill').style.display = 'none';
     stopTimer();
   }
 
-  // Buttons
-  $('#btnBack').disabled = (current===0);
+  // Батырмалар
+  $('#btnBack').disabled = (current === 0);
 }
 
 function move(delta){
