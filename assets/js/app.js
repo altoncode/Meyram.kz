@@ -1,8 +1,8 @@
-// Meyram Quiz — app.js (JSONP-only; server builds PDF; Drive share + print)
+// Meyram Quiz — app.js (JSONP-only; no DOM->PDF)
 'use strict';
 
-/* ===== GAS endpoint (жаңа ключ/URL) ===== */
-const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbyPDFnRXkKLRjb0D4erurtab8ly0yI55vz_WnfOGTGV_Z7mB27eeOqWUunyaTO6rw/exec';
+/* ===== GAS endpoint (жаңа ключ) ===== */
+const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwniJe9u8q8hnhic6--0sC6WMcFK647179viW-Ie4hCj-m5gcK5AZI6NkO1b8xePYU_/exec';
 const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
 
 /* ===== Quiz data ===== */
@@ -40,27 +40,26 @@ let current = 0;
 const answers = new Array(QUESTIONS.length).fill(null); // 0..4, null=skip
 let useTimer = false, timerId = null;
 const PER_Q = 20;
-let LAST_PDF = null;          // { url, id, name, gviewUrl, downloadUrl }
-let CREATE_PROMISE = null;
 
-/* ===== DOM helpers ===== */
+let LAST_PDF = null;       // { url, downloadUrl, gviewUrl, id, name }
+let CREATE_PROMISE = null; // duplicate protection
+
+/* ===== Helpers ===== */
 const $ = s => document.querySelector(s);
 function on(sel, ev, fn){ const el=$(sel); if(el) el.addEventListener(ev, fn); }
 function show(id){ ['#screen-start','#screen-quiz','#screen-result'].forEach(s=>$(s)?.classList.add('hidden')); $(id)?.classList.remove('hidden'); }
-function setButtonsEnabled(flag){
-  const be = $('#btnExport'), bs = $('#btnSend');
-  if (be) be.disabled = !flag;
-  if (bs) bs.disabled = !flag;
-}
 function sanitizeFilename(name){
   let s = String(name||'').trim();
-  s = s.replace(/[\/\\:\*\?"<>|\u0000-\u001F]+/g,'')  // forbidden
-       .replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'');
+  s = s.replace(/[\/\\:\*\?"<>|\u0000-\u001F]+/g,'').replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'');
   return (s || 'Маман').slice(0,80);
 }
 function uid(){ return Math.random().toString(16).slice(2)+Math.random().toString(16).slice(2); }
+function setButtonsEnabled(flag){
+  $('#btnExport') && ($('#btnExport').disabled = !flag);
+  $('#btnSend')   && ($('#btnSend').disabled   = !flag);
+}
 
-/* ===== JSONP ===== */
+// JSONP
 function jsonp(url){
   return new Promise((resolve)=>{
     const cb='__CB_'+uid();
@@ -92,7 +91,6 @@ function renderQuestion(){
   const done = answers.filter(v=>v!=null).length;
   $('#progress').style.width = Math.round(done/QUESTIONS.length*100)+'%';
 
-  // Опция батырмаларын қайта салу (мәтін түсі ақ!)
   const labels = ['Мүлде сәйкес келмейді','Көбірек сәйкес келмейді','Бейтарап','Көбірек сәйкес келеді','Өте сәйкес келеді'];
   const scale = $('#scale'); scale.innerHTML='';
   labels.forEach((lab, idx)=>{
@@ -100,10 +98,8 @@ function renderQuestion(){
     btn.type='button';
     btn.className='opt';
     btn.textContent = lab;
-    btn.style.color = '#fff';                 // ақ мәтін
-    btn.style.borderColor = 'rgba(255,255,255,.25)';
+    btn.style.color = '#fff'; // ақ мәтін (фонда көрінуі үшін)
     if (answers[current]===idx) btn.classList.add('active');
-
     btn.addEventListener('click', ()=>{
       answers[current]=idx;
       renderQuestion();
@@ -121,7 +117,7 @@ function move(d){
   stopTimer();
   current += d;
   if (current<0) current=0;
-  if (current>=QUESTIONS.length){ finishQuiz(); return; } // сервер PDF жасап, содан кейін нәтиже
+  if (current>=QUESTIONS.length){ finishQuiz(); return; } // серверде PDF жасап, содан кейін нәтиже
   renderQuestion();
 }
 function startTimer(sec, onDone){
@@ -129,6 +125,7 @@ function startTimer(sec, onDone){
   timerId=setInterval(()=>{ left--; $('#timer').textContent=left; if(left<=0){ stopTimer(); onDone&&onDone(); } },1000);
 }
 function stopTimer(){ if(timerId){ clearInterval(timerId); timerId=null; } }
+
 function compute(){
   const per={TH:[],RB:[],EX:[],IN:[]}; QUESTIONS.forEach((q,i)=> per[q.d].push(answers[i]));
   const raw={}, norm={};
@@ -142,7 +139,7 @@ function compute(){
   return { raw, norm, top };
 }
 
-/* ===== Waiting → server create PDF → render result ===== */
+/* ===== Waiting → create PDF → then render result ===== */
 function showWaiting(){
   show('#screen-result');
   $('#expertDisplay').textContent = '';
@@ -174,10 +171,11 @@ function renderResultContent(){
     requestAnimationFrame(()=>{ fill.style.width=(norm[k]||0)+'%'; });
   });
 
+  $('#progress').style.width='100%';
   setButtonsEnabled(!!LAST_PDF);
 }
 async function ensurePdfCreated(){
-  if (LAST_PDF && LAST_PDF.url) return LAST_PDF;
+  if (LAST_PDF && LAST_PDF.downloadUrl) return LAST_PDF;
   if (CREATE_PROMISE) return CREATE_PROMISE;
 
   const expert = sanitizeFilename(
@@ -190,8 +188,11 @@ async function ensurePdfCreated(){
     CREATE_PROMISE = null;
     if (resp && resp.ok) {
       LAST_PDF = {
-        url: resp.fileUrl, id: resp.fileId, name: resp.name,
-        gviewUrl: resp.gviewUrl, downloadUrl: resp.downloadUrl
+        url: resp.fileUrl,
+        downloadUrl: resp.downloadUrl,
+        gviewUrl: resp.gviewUrl,
+        id: resp.fileId,
+        name: resp.name
       };
       return LAST_PDF;
     }
@@ -200,66 +201,77 @@ async function ensurePdfCreated(){
   return CREATE_PROMISE;
 }
 async function finishQuiz(){
-  showWaiting();                // 1) күту экраны
+  showWaiting();            // 1) күту экраны
   LAST_PDF = null;
-  await ensurePdfCreated();     // 2) сервер PDF жасайды/сақтайды (Drive)
-  renderResultContent();        // 3) дайын болған соң нәтиже саламыз
-  $('#progress').style.width='100%';
+  await ensurePdfCreated(); // 2) сервер PDF жасайды/сақтайды
+  renderResultContent();    // 3) содан кейін нақты нәтиже
 }
 
-/* ===== Actions ===== */
-// ✔ Принт: жаңа жеңіл орам терезе (iframe = gviewUrl), поп-ап блокқа түспейді
+/* ===== Export / Send actions ===== */
+// ✔ ПДФ-ті жаңа табта авто-print: iframe жоқ, embed + fallback
 async function onExportPdf(){
-  if (!LAST_PDF || !LAST_PDF.gviewUrl) {
-    // Ықтимал кешіксе — серверден қайта талап етеміз
-    const pdf = await ensurePdfCreated();
-    if (!pdf || !pdf.gviewUrl) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
-  }
-  const gview = LAST_PDF.gviewUrl;
-
-  // Синхронды ашу (user gesture): popup-blocker ұстамайды
+  // попап-блокерден құтылу үшін — жаңа табты бірден ашамыз
   const w = window.open('', '_blank', 'noopener');
-  if (!w) { window.open(gview, '_blank', 'noopener'); return; }
+  if (!w) {
+    alert('Браузер жаңа бетті бұғаттады. Осы сайтқа pop-up рұқсат беріңіз.');
+    return;
+  }
+  w.document.write('<!doctype html><title>PDF</title><p style="font:14px system-ui;margin:20px">PDF жүктелуде…</p>');
 
-  const viewerHtml = `
-<!doctype html><html><head><meta charset="utf-8"><title>PDF</title>
+  const pdf = await ensurePdfCreated();
+  if (!pdf || !(pdf.downloadUrl || pdf.url)) {
+    try { w.close(); } catch(_) {}
+    alert('PDF дайын емес. Кейін қайталап көріңіз.');
+    return;
+  }
+
+  const src = pdf.downloadUrl || pdf.url;
+  const fallback = pdf.gviewUrl || pdf.url;
+
+  const html = `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PDF</title>
 <style>
-  html,body{margin:0;height:100%} iframe{border:0;width:100%;height:100%}
+  html,body{margin:0;height:100%;background:#000}
+  .wrap{position:fixed;inset:0}
+  embed{width:100%;height:100%;border:0}
 </style>
 </head><body>
-  <iframe id="f" src="${gview}"></iframe>
+  <div class="wrap">
+    <embed id="pdf" src="${src}#view=FitH" type="application/pdf">
+  </div>
   <script>
-    // iframe ішін басып шығармаймыз — өз тереземізді print қыламыз
-    setTimeout(function(){ try{ window.focus(); window.print(); }catch(e){} }, 1000);
-    // Кейбірі үшін print-тен соң жабу (опция)
-    window.onafterprint = function(){ try{ window.close(); }catch(e){} };
+    setTimeout(function(){ try{ window.focus(); window.print(); }catch(e){} }, 900);
+    setTimeout(function(){
+      try {
+        if (document.visibilityState !== 'hidden') {
+          location.replace(${JSON.stringify(fallback)});
+        }
+      } catch(e){}
+    }, 3500);
   <\/script>
-</body></html>`.trim();
-
-  w.document.open(); w.document.write(viewerHtml); w.document.close();
+</body></html>`;
+  w.document.open(); w.document.write(html); w.document.close();
 }
 
-// ✔ Жіберу: Web Share API → WhatsApp fallback (сілтемені бетке шығармаймыз)
+// Жіберу: Web Share API → WhatsApp fallback
 async function onSendPdf(){
-  if (!LAST_PDF || !LAST_PDF.url) {
-    const pdf = await ensurePdfCreated();
-    if (!pdf || !pdf.url) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
-  }
+  const pdf = await ensurePdfCreated();
+  if (!pdf || !pdf.url) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
+
   const title='Meyram — домен-тест нәтижесі';
   const text ='Нәтиже PDF:';
-  const url  = LAST_PDF.url;
+  const url  = pdf.url;
 
   if (navigator.share) {
     try { await navigator.share({ title, text, url }); return; }
     catch(_) {/* fallback */ }
   }
-  // WhatsApp fallback
   const wa = 'https://wa.me/?text=' + encodeURIComponent(`${title}\n${url}`);
   window.open(wa, '_blank', 'noopener');
 }
 
-/* ===== Wiring ===== */
+/* ===== UI glue ===== */
 function renderStart(){
   on('#btnStart','click', ()=>{
     useTimer = !!($('#timerToggle') && $('#timerToggle').checked);
@@ -295,5 +307,4 @@ function renderStart(){
     if (e.key==='ArrowLeft')  move(-1);
   });
 }
-
 document.addEventListener('DOMContentLoaded', renderStart);
