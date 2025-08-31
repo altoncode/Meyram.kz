@@ -55,10 +55,16 @@ const LS_KEY = 'meyram-quiz-v1';
 // --- Helpers ------------------------------------------------------------
 const $ = sel => document.querySelector(sel);
 const $$ = sel => document.querySelectorAll(sel);
+// Қауіпсіз байлау: элемент жоқ болса — тыныш өтеміз
+function on(sel, ev, handler){
+  const el = $(sel);
+  if (el) el.addEventListener(ev, handler);
+  else console.warn('Element not found for listener:', sel);
+}
 
 function show(id){
-  ['#screen-start','#screen-quiz','#screen-result'].forEach(s=>$(s).classList.add('hidden'));
-  $(id).classList.remove('hidden');
+  ['#screen-start','#screen-quiz','#screen-result'].forEach(s=>$(s)?.classList.add('hidden'));
+  $(id)?.classList.remove('hidden');
 }
 
 // regex-ке тәуелсіз, қауіпсіз filename тазарту
@@ -90,6 +96,8 @@ function blobToDataURL(blob){
     r.readAsDataURL(blob);
   });
 }
+
+// === CORS-safe upload: no-cors + кейін жаңа табта ашу ===================
 async function uploadPdfToDrive(pdfBlob, meta={}, filename){
   const dataURL = await blobToDataURL(pdfBlob);
   const payload = {
@@ -99,14 +107,19 @@ async function uploadPdfToDrive(pdfBlob, meta={}, filename){
     meta
   };
   const url = GAS_ENDPOINT + '?secret=' + encodeURIComponent(GAS_SECRET);
-  const res = await fetch(url, {
+
+  // CORS-ты айналып өту: no-cors, жауапты оқымаймыз
+  await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // preflight жоқ
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(payload)
   });
-  if(!res.ok) throw new Error('Drive upload failed: HTTP '+res.status);
-  return res.json(); // { ok, fileUrl, name, ... }
+
+  // Біз жауапты оқымаймыз, сондықтан жай ok деп қайтарамыз
+  return { ok: true };
 }
+
 async function makePdfFromDom(selector, options={}){
   const { margin = 10 } = options; // мм
   const el = document.querySelector(selector);
@@ -187,7 +200,6 @@ function renderQuestion(){
     if (answers[current] === idx) {
       input.checked = true;
       opt.classList.add('active');
-      if (useTimer) setTimeout(() => move(1), 120);
     }
 
     input.addEventListener('change', () => {
@@ -346,30 +358,21 @@ async function exportPDF(){
   // 2) Локалға сақтау
   pdf.save(fileName);
 
-  // 3) Drive-қа дәл сол файлды жүктеу
+  // 3) Drive-қа дәл сол файлды жүктеу (CORS-safe)
   const pdfBlob = pdf.output('blob');
   try {
-    const r = await uploadPdfToDrive(pdfBlob, meta, fileName);
+    await uploadPdfToDrive(pdfBlob, meta, fileName);
 
-    // Экспорт батырмасының жанына Drive сілтемесін көрсету
-    let a = document.getElementById('drive-link');
-    if (!a) {
-      a = document.createElement('a');
-      a.id = 'drive-link';
-      a.target = '_blank';
-      a.rel = 'noopener';
-      a.style.marginLeft = '8px';
-      const btnRow = $('#btnExport')?.parentElement;
-      if (btnRow) btnRow.appendChild(a);
-    }
-    a.href = r.fileUrl;
-    a.textContent = 'Drive: ' + (r.name || fileName);
-    a.style.display = 'inline-block';
+    // Жаңа табта соңғы файлды бірден ашамыз (CORS жүрмейді)
+    const latestUrl = GAS_ENDPOINT
+      + '?latest=1&secret=' + encodeURIComponent(GAS_SECRET)
+      + '&user=' + encodeURIComponent(meta.user || expert);
+    window.open(latestUrl, '_blank', 'noopener');
 
-    alert('Drive-қа сақталды ✅');
+    alert('Drive-қа жіберілді ✅ (жаңа табта ашылады)');
   } catch (err) {
     console.error(err);
-    alert('PDF локалға сақталды, бірақ Drive-қа жүктеу сәтсіз. Кейінірек қайталап көріңіз.');
+    alert('PDF локалға сақталды. Drive-қа жіберуде желілік шектеу болуы мүмкін — папканы тексеріңіз.');
   }
 }
 
@@ -384,7 +387,7 @@ function loadState(){
     const s = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
     if (!s) return;
     useTimer = !!s.useTimer;
-    $('#timerToggle').checked = useTimer;
+    const tgl = $('#timerToggle'); if (tgl) tgl.checked = useTimer;
     current = Math.min(Math.max(Number(s.current)||0,0), QUESTIONS.length-1);
     if (Array.isArray(s.answers)) s.answers.forEach((v,i)=> answers[i] = (v===null?null:Number(v)));
   } catch {}
@@ -394,9 +397,9 @@ function loadState(){
 document.addEventListener('DOMContentLoaded', () => {
   loadState();
 
-  $('#btnStart').addEventListener('click',()=>{
+  on('#btnStart','click',()=>{
     // таймер күйі
-    useTimer = $('#timerToggle').checked;
+    const tgl = $('#timerToggle'); useTimer = !!(tgl && tgl.checked);
 
     // маман атын жадыға да белгілеп қоямыз
     const name = $('#expertName')?.value?.trim();
@@ -410,34 +413,36 @@ document.addEventListener('DOMContentLoaded', () => {
     renderQuestion();
   });
 
-  $('#btnNext').addEventListener('click',()=>{
+  on('#btnNext','click',()=>{
     if (answers[current] == null) {
       const pill = $('#qHint');
-      const old = pill.textContent;
-      pill.textContent = 'Алдымен жауап беріңіз 🙂';
-      setTimeout(()=> pill.textContent = old, 1200);
+      const old = pill?.textContent || '';
+      if (pill) {
+        pill.textContent = 'Алдымен жауап беріңіз 🙂';
+        setTimeout(()=> { pill.textContent = old; }, 1200);
+      }
       return;
     }
     move(1);
   });
 
-  $('#btnBack').addEventListener('click',()=> move(-1));
-  $('#btnSkip').addEventListener('click',()=>{ answers[current] = null; move(1); });
+  on('#btnBack','click',()=> move(-1));
+  on('#btnSkip','click',()=>{ answers[current] = null; move(1); });
 
-  $('#btnRestart').addEventListener('click',()=>{
+  on('#btnRestart','click',()=>{
     answers.fill(null);
     localStorage.removeItem(LS_KEY);
     location.reload();
   });
 
-  $('#btnReview').addEventListener('click',()=>{
+  on('#btnReview','click',()=>{
     show('#screen-quiz'); renderQuestion();
   });
-  $('#btnExport').addEventListener('click', exportPDF);
+  on('#btnExport','click', exportPDF);
 
   // Keyboard shortcuts
   document.addEventListener('keydown',(e)=>{
-    if($('#screen-quiz').classList.contains('hidden')) return;
+    if($('#screen-quiz')?.classList.contains('hidden')) return;
     const key = e.key;
     if(['1','2','3','4','5'].includes(key)){
       const idx = Number(key)-1;
