@@ -187,7 +187,8 @@ function renderQuestion(){
       opt.classList.add('active');
       opt.setAttribute('aria-checked','true');
       saveState();
-      setTimeout(() => move(1), 120);
+      / автокөшуді тек таймер қосулы кезде ғана жасаймыз
+      if (useTimer) setTimeout(() => move(1), 120);
     });
 
     // Бір қадамда таңдау
