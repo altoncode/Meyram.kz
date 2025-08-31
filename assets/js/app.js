@@ -192,16 +192,15 @@ async function finishQuiz(){
   renderResultContent();
 }
 
-/* ---- Actions ---- */
-// SAME-TAB inline PDF (плагин sandbox мәселелері жоқ)
 async function onExportPdf(){
-  const pdf = await ensurePdfCreated();
-  if (!pdf || !pdf.fileId) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
+  const pdf = await ensurePdfCreated(); // JSONP mode=create → {fileId,...}
+  if (!pdf || !pdf.fileId) {
+    alert('PDF дайын емес. Кейін қайталап көріңіз.'); 
+    return;
+  }
+  // ТІКЕЛЕЙ PDF (inline). Жаңа таб ашпаймыз – дәл осы бетке көшеміз.
   const url = `${GAS_ENDPOINT}?mode=pdf&secret=${encodeURIComponent(GAS_SECRET)}&id=${encodeURIComponent(pdf.fileId)}`;
-  // Жаңа таб ашпаймыз – дәл осы бетке көшеміз.
   location.assign(url);
-  // Ескерту: браузер өзінің PDF viewer-ін ашады. Авто-print-ті плагиндер қауіпсіздігі шектейді,
-  // сондықтан print терезесін сол viewer-ден бір рет басу қажет болуы мүмкін.
 }
 
 // Share: Web Share → WhatsApp fallback (бетке сілтеме шығармаймыз)
@@ -217,8 +216,7 @@ async function onSendPdf(){
     try { await navigator.share({ title, text, url }); return; }
     catch(_) {}
   }
-  const wa = 'https://wa.me/?text=' + encodeURIComponent(`${title}\n${url}`);
-  window.open(wa, '_blank', 'noopener');
+  
 }
 
 /* ---- Wiring ---- */
