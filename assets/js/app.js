@@ -1,4 +1,4 @@
-// assets/js/app.js — JSONP-only (server builds PDF). No DOM->PDF.
+// assets/js/app.js — JSONP-only (server builds & shares PDF). No DOM->PDF.
 'use strict';
 
 /*** CONFIG ***/
@@ -55,14 +55,12 @@ function sanitizeFilename(name){
 function uid(){ return Math.random().toString(16).slice(2)+Math.random().toString(16).slice(2); }
 function jsonp(url, timeoutMs=15000){
   return new Promise((resolve)=>{
-    const cb='__CB_'+uid();
-    let done=false;
+    const cb='__CB_'+uid(); let done=false;
     const s=document.createElement('script');
-    const finish = (data)=>{ if(done) return; done=true; try{ resolve(data); } finally { delete window[cb]; try{s.remove();}catch{} } };
+    const finish = (data)=>{ if(done) return; done=true; try{ resolve(data); } finally{ delete window[cb]; try{s.remove();}catch{} } };
     window[cb] = (data)=> finish(data);
     s.src = url + (url.includes('?')?'&':'?') + 'callback=' + encodeURIComponent(cb);
-    s.async = true;
-    s.onerror = ()=> finish({ ok:false, error:'Network' });
+    s.async = true; s.onerror = ()=> finish({ ok:false, error:'Network' });
     document.head.appendChild(s);
     setTimeout(()=> finish({ ok:false, error:'Timeout' }), timeoutMs);
   });
@@ -76,6 +74,28 @@ function buildCreateUrl(expert, answersArr){
     'answers=' + encodeURIComponent(csv)
   ].join('&');
   return `${GAS_ENDPOINT}?${qs}`;
+}
+
+/* Drive URL helper: embed & share links */
+function driveEmbedUrl(pdf){
+  // Превью үшін iframe-ке болатын сілтеме
+  const id = pdf?.id || extractId(pdf?.url || '');
+  if (!id) return null;
+  // preview — iframe friendly
+  return `https://drive.google.com/file/d/${id}/preview#view=FitH`;
+}
+function driveShareUrl(pdf){
+  // Пайдаланушыға жіберуге ыңғайлы view
+  const id = pdf?.id || extractId(pdf?.url || '');
+  if (!id) return pdf?.url || null;
+  return `https://drive.google.com/file/d/${id}/view?usp=sharing`;
+}
+function extractId(url){
+  if (!url) return null;
+  let m = url.match(/\/file\/d\/([^/]+)/); if (m) return m[1];
+  m = url.match(/[?&]id=([^&]+)/);        if (m) return m[1];
+  m = url.match(/\/d\/([^/]+)\//);        if (m) return m[1];
+  return null;
 }
 
 /*** QUIZ RENDER ***/
@@ -137,7 +157,6 @@ function compute(){
 /*** RESULT FLOW ***/
 function setPdfUiState(state){
   const be=$('#btnExport'), bs=$('#btnSend');
-  // батырмалар әрқашан актив
   if (be){ be.disabled=false; be.textContent = state==='ready' ? 'PDF ретінде сақтау' : 'PDF дайындалуда…'; }
   if (bs){ bs.disabled=false; bs.textContent = state==='ready' ? 'PDF жіберу (Drive)' : 'PDF дайындалуда…'; }
 }
@@ -206,41 +225,52 @@ async function ensurePdfCreated(){
 async function finishQuiz(){
   showWaiting();
   LAST_PDF = null;
-  await ensurePdfCreated();      // сервер PDF жасайды
-  renderResultContent();         // содан кейін нәтиже
+  await ensurePdfCreated();
+  renderResultContent();
   $('#progress').style.width='100%';
 }
 
-/*** PRINT (no popup) ***/
+/*** PRINT (no popup; Drive /preview to avoid 403) ***/
 function printViaHiddenIframe(url){
   const prev = document.getElementById('print-frame'); if (prev) try{prev.remove();}catch{}
   const f=document.createElement('iframe');
-  f.id='print-frame'; Object.assign(f.style,{position:'fixed',right:'0',bottom:'0',width:'0',height:'0',border:'0'});
-  f.src = url + (url.includes('#')?'':'#view=FitH');
+  f.id='print-frame';
+  Object.assign(f.style,{position:'fixed',right:'0',bottom:'0',width:'0',height:'0',border:'0'});
+  f.src = url;
   let fired=false;
-  const go=()=>{ if(fired) return; fired=true; try{ f.contentWindow?.focus(); f.contentWindow?.print(); }catch{} setTimeout(()=>{try{f.remove();}catch{}},1500); };
-  f.onload=()=>setTimeout(go,300); setTimeout(go,8000);
+  const go=()=>{ if(fired) return; fired=true;
+    try{ f.contentWindow?.focus(); f.contentWindow?.print(); }catch{}
+    setTimeout(()=>{ try{f.remove();}catch{} }, 1500);
+  };
+  // onload — әдетте жеткілікті; safety timeout — 8s
+  f.onload=()=>setTimeout(go,300);
+  setTimeout(go,8000);
   document.body.appendChild(f);
 }
 
 /*** ACTIONS ***/
 async function onExportPdf(){
-  // Батырма ЕШҚАШАН бұғатталмайды — басылғанда өзі тексереді
   const pdf = await ensurePdfCreated();
   if (!pdf || !pdf.url){ alert('PDF дайындалуда. Бірер секундтан кейін қайталап көріңіз.'); return; }
-  printViaHiddenIframe(pdf.url);
+
+  // /view → /preview (iframe friendly). Егер файл “anyone with link” емес болса, 403 болуы мүмкін.
+  const embed = driveEmbedUrl(pdf);
+  if (!embed){ window.open(pdf.url, '_blank', 'noopener'); return; }
+
+  printViaHiddenIframe(embed);
 }
 async function onSendPdf(){
   const pdf = await ensurePdfCreated();
   if (!pdf || !pdf.url){ alert('PDF дайындалуда. Бірер секундтан кейін қайталап көріңіз.'); return; }
-  const title='Meyram — домен-тест нәтижесі', text='Нәтиже PDF:', url=pdf.url;
+  const share = driveShareUrl(pdf);
+  const title='Meyram — домен-тест нәтижесі', text='Нәтиже PDF:', url=share || pdf.url;
   if (navigator.share){ try{ await navigator.share({title, text, url}); return; }catch{} }
   window.open('https://wa.me/?text='+encodeURIComponent(`${title}\n${url}`),'_blank','noopener');
 }
 
 /*** UI glue ***/
 function initUI(){
-  // опциялар мәтінін ақ ету (CSS override safety)
+  // опциялар мәтінін ақ ету
   const style=document.createElement('style'); style.textContent='.scale .opt{color:#fff !important}'; document.head.appendChild(style);
 
   on('#btnStart','click', ()=>{
