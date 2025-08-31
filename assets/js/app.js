@@ -1,8 +1,8 @@
-// Meyram Quiz — app.js (JSONP-only; no DOM->PDF)
+// Meyram Quiz — app.js (JSONP-only; same-tab PDF embed + auto print)
 'use strict';
 
-/* ===== GAS endpoint (жаңа ключ) ===== */
-const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwniJe9u8q8hnhic6--0sC6WMcFK647179viW-Ie4hCj-m5gcK5AZI6NkO1b8xePYU_/exec';
+/* ===== GAS endpoint ===== */
+const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbyz7ni_7bKpkMWQHHw8MvncePCBJsi5axTT8R_sl68ovSpTxyCQOGmzVSQJiZ4qq0j9/exec';
 const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
 
 /* ===== Quiz data ===== */
@@ -98,7 +98,7 @@ function renderQuestion(){
     btn.type='button';
     btn.className='opt';
     btn.textContent = lab;
-    btn.style.color = '#fff'; // ақ мәтін (фонда көрінуі үшін)
+    btn.style.color = '#fff'; // ақ мәтін (фонда жоғалмас үшін)
     if (answers[current]===idx) btn.classList.add('active');
     btn.addEventListener('click', ()=>{
       answers[current]=idx;
@@ -208,29 +208,25 @@ async function finishQuiz(){
 }
 
 /* ===== Export / Send actions ===== */
-// ✔ ПДФ-ті жаңа табта авто-print: iframe жоқ, embed + fallback
+/* ✔ SAME-TAB EMBED:
+   - жаңа таб ашпаймыз;
+   - құжатты осы беттің document-ін толық алмастырамыз;
+   - <embed src="..."> көрсетеміз;
+   - 900ms кейін window.print() шақырамыз;
+   - Егер embed рендерлемесе, 3.5 секундтан соң gviewUrl немесе fileUrl-ға ауысамыз.
+*/
 async function onExportPdf(){
-  // попап-блокерден құтылу үшін — жаңа табты бірден ашамыз
-  const w = window.open('', '_blank', 'noopener');
-  if (!w) {
-    alert('Браузер жаңа бетті бұғаттады. Осы сайтқа pop-up рұқсат беріңіз.');
-    return;
-  }
-  w.document.write('<!doctype html><title>PDF</title><p style="font:14px system-ui;margin:20px">PDF жүктелуде…</p>');
-
   const pdf = await ensurePdfCreated();
   if (!pdf || !(pdf.downloadUrl || pdf.url)) {
-    try { w.close(); } catch(_) {}
     alert('PDF дайын емес. Кейін қайталап көріңіз.');
     return;
   }
-
   const src = pdf.downloadUrl || pdf.url;
   const fallback = pdf.gviewUrl || pdf.url;
 
   const html = `<!doctype html><html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PDF</title>
+<title>${(pdf.name||'PDF').replace(/</g,'&lt;')}</title>
 <style>
   html,body{margin:0;height:100%;background:#000}
   .wrap{position:fixed;inset:0}
@@ -244,17 +240,18 @@ async function onExportPdf(){
     setTimeout(function(){ try{ window.focus(); window.print(); }catch(e){} }, 900);
     setTimeout(function(){
       try {
-        if (document.visibilityState !== 'hidden') {
-          location.replace(${JSON.stringify(fallback)});
-        }
+        var el = document.getElementById('pdf');
+        var ok = el && el.clientHeight>0;
+        if (!ok) location.replace(${JSON.stringify(fallback)});
       } catch(e){}
     }, 3500);
   <\/script>
 </body></html>`;
-  w.document.open(); w.document.write(html); w.document.close();
+
+  document.open(); document.write(html); document.close();
 }
 
-// Жіберу: Web Share API → WhatsApp fallback
+// Жіберу: Web Share API → WhatsApp fallback (бетке сілтеме шығармаймыз)
 async function onSendPdf(){
   const pdf = await ensurePdfCreated();
   if (!pdf || !pdf.url) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
@@ -272,7 +269,19 @@ async function onSendPdf(){
 }
 
 /* ===== UI glue ===== */
-function renderStart(){
+function renderQuestionShortcuts(){
+  document.addEventListener('keydown',(e)=>{
+    if($('#screen-quiz')?.classList.contains('hidden')) return;
+    if (['1','2','3','4','5'].includes(e.key)){
+      answers[current]=Number(e.key)-1;
+      renderQuestion();
+      if (useTimer) setTimeout(()=>move(1),120);
+    }
+    if (e.key==='ArrowRight') move(1);
+    if (e.key==='ArrowLeft')  move(-1);
+  });
+}
+function wireUi(){
   on('#btnStart','click', ()=>{
     useTimer = !!($('#timerToggle') && $('#timerToggle').checked);
     const name=$('#expertName')?.value?.trim();
@@ -291,20 +300,10 @@ function renderStart(){
   on('#btnReview','click', ()=>{ show('#screen-quiz'); renderQuestion(); });
   on('#btnRestart','click', ()=>{ answers.fill(null); location.reload(); });
 
-  // Actions
   on('#btnExport','click', onExportPdf);
   on('#btnSend','click',   onSendPdf);
 
-  // Қысқа пернелер
-  document.addEventListener('keydown',(e)=>{
-    if($('#screen-quiz')?.classList.contains('hidden')) return;
-    if (['1','2','3','4','5'].includes(e.key)){
-      answers[current]=Number(e.key)-1;
-      renderQuestion();
-      if (useTimer) setTimeout(()=>move(1),120);
-    }
-    if (e.key==='ArrowRight') move(1);
-    if (e.key==='ArrowLeft')  move(-1);
-  });
+  renderQuestionShortcuts();
 }
-document.addEventListener('DOMContentLoaded', renderStart);
+
+document.addEventListener('DOMContentLoaded', wireUi);
