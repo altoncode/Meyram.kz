@@ -103,19 +103,7 @@ function printViaHiddenIframe(url){
   setTimeout(go, 8000);
   document.body.appendChild(f);
 }
-Ескерту:
 
-Бұл “Slow network…” жазбаларын толық жоймайды (олар Drive-тың өз консольі), бірақ азайта алады. Функционалға әсер етпейді.
-
-Негізгі тексеретін нәрсе — файлға “Anyone with the link → Viewer” рұқсаты берілгені. Оны GAS-та мына жолмен қосқаныңызға көз жеткізіңіз:
-
-js
-Копировать код
-Drive.Permissions.create(
-  {role:'reader', type:'anyone', allowFileDiscovery:false},
-  fileId,
-  {supportsAllDrives:true}
-);
 function driveShareUrl(pdf){
   // Пайдаланушыға жіберуге ыңғайлы view
   const id = pdf?.id || extractId(pdf?.url || '');
