@@ -1,7 +1,7 @@
 // Meyram Quiz — app.js
 // TZ: Asia/Almaty (UTC+5)
 
-// === Google Apps Script конфиг (сіз берген мәндер) ======================
+// === Google Apps Script конфиг ======================
 const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzZUFbtDNt3XRiYEBIo8oFXIXn5-GeSiKo1YQZknvo81lYAi8deWO9ejfyUnI6mLp17/exec';
 const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
 
@@ -61,13 +61,21 @@ function show(id){
   $(id).classList.remove('hidden');
 }
 
+// regex-ке тәуелсіз, қауіпсіз filename тазарту
 function sanitizeFilename(name){
-  return String(name || 'unknown')
-    .trim()
-    .replace(/[\/\\:\*\?"<>\|]+/g,'') // тыйым салынған символдар
-    .replace(/\s+/g,'_')              // бос орын → _
-    .slice(0, 80);
+  const s = String(name || 'unknown').trim();
+  const allowed = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-';
+  let out = '';
+  for (const ch of s) out += allowed.indexOf(ch) !== -1 ? ch : '_';
+  // қатар '_' қысқарту
+  let compact = '', prevUnd = false;
+  for (const ch of out){
+    if (ch === '_'){ if (!prevUnd) compact += '_'; prevUnd = true; }
+    else { compact += ch; prevUnd = false; }
+  }
+  return compact.length > 80 ? compact.slice(0,80) : compact;
 }
+
 function formatDateYMD(d=new Date()){
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth()+1).padStart(2,'0');
@@ -187,7 +195,7 @@ function renderQuestion(){
       opt.classList.add('active');
       opt.setAttribute('aria-checked','true');
       saveState();
-      / автокөшуді тек таймер қосулы кезде ғана жасаймыз
+      // автокөшуді тек таймер қосулы кезде ғана жасаймыз
       if (useTimer) setTimeout(() => move(1), 120);
     });
 
@@ -262,11 +270,7 @@ function showResult(){
 
   // Маман аты
   const name = $('#expertName')?.value?.trim() || '';
-  if(name){
-    $('#expertDisplay').textContent = `Маман: ${name}`;
-  } else {
-    $('#expertDisplay').textContent = '';
-  }
+  $('#expertDisplay').textContent = name ? `Маман: ${name}` : '';
 
   // Title/desc
   const topNames = top.map(k=>DOMAINS[k].name).join(' + ');
@@ -308,13 +312,21 @@ function showResult(){
   saveState();
 }
 
-// === NEW: PDF экспорт + Drive жүктеу ================================
+// === PDF экспорт + Drive жүктеу ================================
 async function exportPDF(){
   // Маман атын алу: input → window.__who → экрандағы текст → 'unknown'
-  let expert = $('#expertName')?.value?.trim()
-            || (window.__who && window.__who.name)
-            || $('#expertDisplay')?.textContent?.replace(/^Маман:\s*/,'')
-            || 'unknown';
+  let expert = (function () {
+    const fromInput = $('#expertName')?.value?.trim();
+    if (fromInput) return fromInput;
+
+    const fromWho = (window.__who && window.__who.name) ? String(window.__who.name).trim() : '';
+    if (fromWho) return fromWho;
+
+    const disp = $('#expertDisplay')?.textContent || '';
+    const prefix = 'Маман:';
+    if (disp.slice(0, prefix.length) === prefix) return disp.slice(prefix.length).trim();
+    return disp.trim() || 'unknown';
+  })();
   expert = sanitizeFilename(expert);
 
   const fileName = `${expert}_${formatDateYMD(new Date())}.pdf`;
@@ -431,7 +443,8 @@ document.addEventListener('DOMContentLoaded', () => {
       answers[current]=idx;
       saveState();
       renderQuestion();
-      setTimeout(()=> move(1), 120);
+      // тек таймер қосулы болса ғана автокөшу
+      if (useTimer) setTimeout(()=> move(1), 120);
     }
     if(key==='ArrowRight') move(1);
     if(key==='ArrowLeft') move(-1);
