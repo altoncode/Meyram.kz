@@ -1,7 +1,7 @@
 // Meyram Quiz — app.js (JSONP-only; no DOM->PDF)
 'use strict';
 
-/* ===== GAS endpoint (сіз берген "жаңа ключ") ===== */
+/* ===== GAS endpoint (жаңа ключ) ===== */
 const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwhpToU1iOp2yQ625DF1zdaJb5uUROaTRFGATWAOQZHjT4o3rmLkQ-K0JpcUxbYXSDg/exec';
 const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
 
@@ -46,6 +46,10 @@ let CREATE_PROMISE = null;    // duplicate-құтылу үшін
 /* ===== Helpers ===== */
 const $ = s => document.querySelector(s);
 function on(sel, ev, fn){ const el=$(sel); if(el) el.addEventListener(ev, fn); }
+function show(id){
+  ['#screen-start','#screen-quiz','#screen-result'].forEach(s=>$(s)?.classList.add('hidden'));
+  $(id)?.classList.remove('hidden');
+}
 function sanitizeFilename(name){
   let s = String(name||'').trim();
   s = s.replace(/[\/\\:\*\?"<>|\u0000-\u001F]+/g,'').replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'');
@@ -53,16 +57,19 @@ function sanitizeFilename(name){
 }
 function uid(){ return Math.random().toString(16).slice(2)+Math.random().toString(16).slice(2); }
 
-// JSONP шақыру
-function jsonp(url){
+// JSONP шақыру (тазалау + таймаут)
+function jsonp(url, timeoutMs=15000){
   return new Promise((resolve)=>{
     const cb='__CB_'+uid();
-    window[cb] = (data)=>{ try{ resolve(data); } finally { delete window[cb]; } };
+    let done=false;
     const s=document.createElement('script');
+    const finish = (data)=>{ if(done) return; done=true; try{ resolve(data); } finally { delete window[cb]; try{s.remove();}catch{} } };
+    window[cb] = (data)=> finish(data);
     s.src = url + (url.includes('?')?'&':'?') + 'callback=' + encodeURIComponent(cb);
     s.async = true;
-    s.onerror = ()=> resolve({ ok:false, error:'Network' });
+    s.onerror = ()=> finish({ ok:false, error:'Network' });
     document.head.appendChild(s);
+    setTimeout(()=> finish({ ok:false, error:'Timeout' }), timeoutMs);
   });
 }
 function buildCreateUrl(expert, answersArr){
@@ -78,6 +85,9 @@ function buildCreateUrl(expert, answersArr){
 
 /* ===== Quiz render ===== */
 function renderQuestion(){
+  // ☑ Ескі таймерді тоқтатып аламыз
+  stopTimer();
+
   const q = QUESTIONS[current];
   $('#qText').textContent = q.t;
   $('#qCounter').textContent = `Сұрақ ${current+1} / ${QUESTIONS.length}`;
@@ -87,15 +97,14 @@ function renderQuestion(){
 
   const labels = ['Мүлде сәйкес келмейді','Көбірек сәйкес келмейді','Бейтарап','Көбірек сәйкес келеді','Өте сәйкес келеді'];
   const scale = $('#scale'); scale.innerHTML='';
+
   labels.forEach((lab, idx)=>{
     const btn = document.createElement('button');
     btn.type='button';
     btn.className='opt';
     btn.textContent = lab;
-    // ❗ ақ мәтін
+    // мәтін — ақ
     btn.style.color = '#fff';
-    // қалауыңызша фонды да күшейтуге болады:
-    // btn.style.background = 'rgba(255,255,255,0.08)';
 
     if (answers[current]===idx) btn.classList.add('active');
     btn.addEventListener('click', ()=>{
@@ -107,7 +116,7 @@ function renderQuestion(){
   });
 
   $('#timerPill').style.display = useTimer ? 'inline-flex' : 'none';
-  if (useTimer) startTimer(PER_Q, ()=>move(1)); else stopTimer();
+  if (useTimer) startTimer(PER_Q, ()=>move(1));
 
   $('#btnBack').disabled = (current===0);
 }
@@ -115,7 +124,7 @@ function move(d){
   stopTimer();
   current += d;
   if (current<0) current=0;
-  if (current>=QUESTIONS.length){ finishQuiz(); return; } // ❗ серверде PDF жасап, содан кейін ғана нәтиже
+  if (current>=QUESTIONS.length){ finishQuiz(); return; } // ❗ finish: серверде PDF жасап, сосын нәтиже
   renderQuestion();
 }
 function startTimer(sec, onDone){
@@ -128,7 +137,8 @@ function compute(){
   const per={TH:[],RB:[],EX:[],IN:[]}; QUESTIONS.forEach((q,i)=> per[q.d].push(answers[i]));
   const raw={}, norm={};
   for(const k of Object.keys(per)){
-    const arr=per[k].filter(v=>v!=null); const sum=arr.reduce((a,b)=>a+Number(b),0);
+    const arr=per[k].filter(v=>v!=null);
+    const sum=arr.reduce((a,b)=>a+Number(b),0);
     const denom=Math.max(arr.length*4,1);
     raw[k]=sum; norm[k]=Math.round((sum/denom)*100);
   }
@@ -209,36 +219,52 @@ async function finishQuiz(){
   showWaiting();                 // 1) күту экраны
   LAST_PDF = null;
   await ensurePdfCreated();      // 2) сервер PDF жасайды/сақтайды
-  renderResultContent();         // 3) содан кейін ғана нақты нәтиже шығарамыз
+  renderResultContent();         // 3) содан кейін ғана нақты нәтиже
   $('#progress').style.width='100%';
 }
 
-/* ===== Export / Send actions ===== */
-// PDF-ті жаңа табта ашып, print терезесін бірден шығару
-async function onExportPdf(){
-  const pdf = await ensurePdfCreated();
-  if (!pdf || !pdf.url) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
+/* ===== Print helpers (no popup) ===== */
+function printViaHiddenIframe(url) {
+  // бар болса — өшіреміз
+  const prev = document.getElementById('print-frame');
+  if (prev) try{ prev.remove(); }catch{}
+  const f = document.createElement('iframe');
+  f.id = 'print-frame';
+  f.style.position = 'fixed';
+  f.style.right = '0';
+  f.style.bottom = '0';
+  f.style.width = '0';
+  f.style.height = '0';
+  f.style.border = '0';
+  f.src = url + (url.includes('#') ? '' : '#view=FitH');
 
-  const viewerHtml = `
-<!doctype html><html><head><meta charset="utf-8"><title>PDF</title>
-<style>html,body{margin:0;height:100%}iframe{border:0;width:100%;height:100%}</style>
-</head><body>
-<iframe src="${pdf.url}#view=FitH"></iframe>
-<script>setTimeout(function(){try{window.print()}catch(e){}},800);</script>
-</body></html>`.trim();
+  let printed = false;
+  const fire = () => {
+    if (printed) return;
+    printed = true;
+    try {
+      f.contentWindow && f.contentWindow.focus();
+      f.contentWindow && f.contentWindow.print();
+    } catch (_) {}
+    setTimeout(()=>{ try{ f.remove(); }catch{} }, 2000);
+  };
 
-  const w = window.open('about:blank','_blank','noopener');
-  if (w) {
-    w.document.open();
-    w.document.write(viewerHtml);
-    w.document.close();
-  } else {
-    // попап блокер ұстаса — жай ғана ашамыз
-    window.open(pdf.url, '_blank', 'noopener');
-  }
+  f.onload = () => setTimeout(fire, 300);
+  setTimeout(fire, 8000); // сақтық фолбэк
+  document.body.appendChild(f);
 }
 
-// Жіберу: Web Share API → WhatsApp fallback
+/* ===== Export / Send actions ===== */
+async function onExportPdf(){
+  const pdf = await ensurePdfCreated();
+  if (!pdf || !pdf.url) {
+    alert('PDF дайын емес. Кейін қайталап көріңіз.');
+    return;
+  }
+  // Поп-апсыз принт: жасырын iframe ішінде ашып, бірден print()
+  printViaHiddenIframe(pdf.url);
+}
+
 async function onSendPdf(){
   const pdf = await ensurePdfCreated();
   if (!pdf || !pdf.url) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
@@ -249,17 +275,19 @@ async function onSendPdf(){
 
   if (navigator.share) {
     try { await navigator.share({ title, text, url }); return; }
-    catch(_) {/* fallback */ }
+    catch(_) { /* fallback */ }
   }
-  // WhatsApp fallback
   const wa = 'https://wa.me/?text=' + encodeURIComponent(`${title}\n${url}`);
   window.open(wa, '_blank', 'noopener');
 }
 
 /* ===== UI glue ===== */
-function show(id){ ['#screen-start','#screen-quiz','#screen-result'].forEach(s=>$(s)?.classList.add('hidden')); $(id)?.classList.remove('hidden'); }
-
 function renderStart(){
+  // Жауап опцияларының мәтінін ақ ету (CSS override-ынан сақтаныңыз)
+  const style = document.createElement('style');
+  style.textContent = `.scale .opt{color:#fff !important}`;
+  document.head.appendChild(style);
+
   on('#btnStart','click', ()=>{
     useTimer = !!($('#timerToggle') && $('#timerToggle').checked);
     const name=$('#expertName')?.value?.trim();
@@ -282,7 +310,7 @@ function renderStart(){
   on('#btnExport','click', onExportPdf);
   on('#btnSend','click',   onSendPdf);
 
-  // Қысқа пернелер
+  // Shortcut пернелер
   document.addEventListener('keydown',(e)=>{
     if($('#screen-quiz')?.classList.contains('hidden')) return;
     if (['1','2','3','4','5'].includes(e.key)){
@@ -292,6 +320,12 @@ function renderStart(){
     }
     if (e.key==='ArrowRight') move(1);
     if (e.key==='ArrowLeft')  move(-1);
+  });
+
+  // Таймерді пауза/қалпына келтіру
+  document.addEventListener('visibilitychange',()=>{
+    if(!useTimer) return;
+    if(document.hidden) stopTimer(); else startTimer(PER_Q,()=>move(1));
   });
 }
 
