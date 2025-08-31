@@ -187,6 +187,7 @@ function renderQuestion(){
     if (answers[current] === idx) {
       input.checked = true;
       opt.classList.add('active');
+      if (useTimer) setTimeout(() => move(1), 120);
     }
 
     input.addEventListener('change', () => {
