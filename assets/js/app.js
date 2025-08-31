@@ -1,6 +1,10 @@
 // Meyram Quiz — app.js
 // TZ: Asia/Almaty (UTC+5)
 
+// === Google Apps Script конфиг (сіз берген мәндер) ======================
+const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzZUFbtDNt3XRiYEBIo8oFXIXn5-GeSiKo1YQZknvo81lYAi8deWO9ejfyUnI6mLp17/exec';
+const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
+
 // --- Data ---------------------------------------------------------------
 const DOMAINS = {
   TH: { name: 'Мышление (Стратегиялық ойлау)', color: '#86ffda',
@@ -57,6 +61,79 @@ function show(id){
   $(id).classList.remove('hidden');
 }
 
+function sanitizeFilename(name){
+  return String(name || 'unknown')
+    .trim()
+    .replace(/[\/\\:\*\?"<>\|]+/g,'') // тыйым салынған символдар
+    .replace(/\s+/g,'_')              // бос орын → _
+    .slice(0, 80);
+}
+function formatDateYMD(d=new Date()){
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const dd = String(d.getDate()).padStart(2,'0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+function blobToDataURL(blob){
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload = ()=>res(r.result);
+    r.onerror = rej;
+    r.readAsDataURL(blob);
+  });
+}
+async function uploadPdfToDrive(pdfBlob, meta={}, filename){
+  const dataURL = await blobToDataURL(pdfBlob);
+  const payload = {
+    filename: filename || `meyram-${Date.now()}.pdf`,
+    mimeType: 'application/pdf',
+    base64: dataURL,
+    meta
+  };
+  const url = GAS_ENDPOINT + '?secret=' + encodeURIComponent(GAS_SECRET);
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // preflight жоқ
+    body: JSON.stringify(payload)
+  });
+  if(!res.ok) throw new Error('Drive upload failed: HTTP '+res.status);
+  return res.json(); // { ok, fileUrl, name, ... }
+}
+async function makePdfFromDom(selector, options={}){
+  const { margin = 10 } = options; // мм
+  const el = document.querySelector(selector);
+  if(!el) throw new Error('Нәтиже DOM табылмады: '+selector);
+
+  if (typeof html2canvas !== 'function' || !window.jspdf?.jsPDF) {
+    throw new Error('PDF кітапханалары жүктелмеген (html2canvas/jsPDF).');
+  }
+
+  const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff' });
+  const imgData = canvas.toDataURL('image/png');
+
+  const pdf = new window.jspdf.jsPDF('p','mm','a4');
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const usableW = pageW - margin*2;
+
+  const imgProps = pdf.getImageProperties(imgData);
+  const imgW = usableW;
+  const imgH = (imgProps.height * imgW) / imgProps.width;
+
+  let x = margin, y = margin;
+  pdf.addImage(imgData, 'PNG', x, y, imgW, imgH, undefined, 'FAST');
+
+  // Егер биіктік көп болса — бірнеше бетке "сырғытып" басамыз
+  let position = y;
+  while ((imgH + position) > pageH - margin) {
+    position -= (pageH - margin*2);
+    pdf.addPage();
+    pdf.addImage(imgData, 'PNG', x, position, imgW, imgH, undefined, 'FAST');
+  }
+  return pdf;
+}
+
+// --- Quiz rendering -----------------------------------------------------
 function renderQuestion(){
   const q = QUESTIONS[current];
 
@@ -97,27 +174,23 @@ function renderQuestion(){
     input.name = `q${current}`;
     input.value = String(idx);
     input.tabIndex = -1; // фокусты opt алады
-    // Егер CSS-та .opt input {position:absolute; inset:0; opacity:0;} болса — ок.
-    // Қос-қадамды болдырмау үшін pointerEvents-ті сөндіреміз:
-    input.style.pointerEvents = 'none';
+    input.style.pointerEvents = 'none'; // екі-қадамды болдырмау
 
     if (answers[current] === idx) {
       input.checked = true;
       opt.classList.add('active');
     }
 
-    // Негізгі: iOS-та тұрақты жұмыс үшін change оқиғасы
     input.addEventListener('change', () => {
       answers[current] = idx;
       $$('.opt').forEach(el => { el.classList.remove('active'); el.setAttribute('aria-checked','false'); });
       opt.classList.add('active');
       opt.setAttribute('aria-checked','true');
       saveState();
-      // Қаласаңыз, авто-келесі қосыңыз:
       setTimeout(() => move(1), 120);
     });
 
-    // Click/Enter/Space → input.click() (бір қадамда таңдалады)
+    // Бір қадамда таңдау
     opt.addEventListener('click', () => input.click());
     opt.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
@@ -182,23 +255,21 @@ function compute(){
 }
 
 function showResult(){
-  // finalize progress bar
   $('#progress').style.width = '100%';
 
   const {raw, norm, top} = compute();
-  
+
   // Маман аты
-  const name = $('#expertName')?.value || '';
+  const name = $('#expertName')?.value?.trim() || '';
   if(name){
     $('#expertDisplay').textContent = `Маман: ${name}`;
   } else {
     $('#expertDisplay').textContent = '';
   }
 
-  // Title
+  // Title/desc
   const topNames = top.map(k=>DOMAINS[k].name).join(' + ');
   $('#topTitle').textContent = `Басым домен: ${topNames}`;
-
   const tie = top.length>1;
   $('#topDesc').textContent = tie
     ? 'Екі (немесе одан да көп) доменіңіз тең дәрежеде күшті көрінеді — бұл жан-жақтылықты білдіреді.'
@@ -210,7 +281,9 @@ function showResult(){
     const row = document.createElement('div'); row.className = 'barrow';
     const lab = document.createElement('div'); lab.innerHTML = `<span class="badge">${k}</span> ${DOMAINS[k].name}`;
     const track = document.createElement('div'); track.className='bartrack';
-    const fill = document.createElement('div'); fill.className='barfill'; fill.style.background = `linear-gradient(90deg, ${DOMAINS[k].color}, #6ea8fe)`; fill.style.width = '0%';
+    const fill = document.createElement('div'); fill.className='barfill';
+    fill.style.background = `linear-gradient(90deg, ${DOMAINS[k].color}, #6ea8fe)`; 
+    fill.style.width = '0%';
     const pct = document.createElement('div'); pct.textContent = norm[k] + '%'; pct.style.textAlign='right';
     track.appendChild(fill); row.append(lab, track, pct); bars.appendChild(row);
     requestAnimationFrame(()=>{ fill.style.width = norm[k] + '%'; });
@@ -234,11 +307,59 @@ function showResult(){
   saveState();
 }
 
-function exportPDF(){
-  window.print();
+// === NEW: PDF экспорт + Drive жүктеу ================================
+async function exportPDF(){
+  // Маман атын алу: input → window.__who → экрандағы текст → 'unknown'
+  let expert = $('#expertName')?.value?.trim()
+            || (window.__who && window.__who.name)
+            || $('#expertDisplay')?.textContent?.replace(/^Маман:\s*/,'')
+            || 'unknown';
+  expert = sanitizeFilename(expert);
+
+  const fileName = `${expert}_${formatDateYMD(new Date())}.pdf`;
+
+  const meta = {
+    user: (window.__who && (window.__who.phone || window.__who.name)) || expert || 'anonymous',
+    city: window.__who?.city || 'kz',
+    score: window.__score || 0,
+    quizId: 'meyram-quiz',
+    generatedAt: new Date().toISOString()
+  };
+
+  // 1) PDF жасау (нәтиже картасын аламыз)
+  const pdf = await makePdfFromDom('#screen-result', { margin: 10 });
+
+  // 2) Локалға сақтау
+  pdf.save(fileName);
+
+  // 3) Drive-қа дәл сол файлды жүктеу
+  const pdfBlob = pdf.output('blob');
+  try {
+    const r = await uploadPdfToDrive(pdfBlob, meta, fileName);
+
+    // Экспорт батырмасының жанына Drive сілтемесін көрсету
+    let a = document.getElementById('drive-link');
+    if (!a) {
+      a = document.createElement('a');
+      a.id = 'drive-link';
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.style.marginLeft = '8px';
+      const btnRow = $('#btnExport')?.parentElement;
+      if (btnRow) btnRow.appendChild(a);
+    }
+    a.href = r.fileUrl;
+    a.textContent = 'Drive: ' + (r.name || fileName);
+    a.style.display = 'inline-block';
+
+    alert('Drive-қа сақталды ✅');
+  } catch (err) {
+    console.error(err);
+    alert('PDF локалға сақталды, бірақ Drive-қа жүктеу сәтсіз. Кейінірек қайталап көріңіз.');
+  }
 }
 
-// --- Persistence ---------------------------------------------------------
+// --- Persistence --------------------------------------------------------
 function saveState(){
   try {
     localStorage.setItem(LS_KEY, JSON.stringify({ current, answers, useTimer }));
@@ -260,7 +381,16 @@ document.addEventListener('DOMContentLoaded', () => {
   loadState();
 
   $('#btnStart').addEventListener('click',()=>{
+    // таймер күйі
     useTimer = $('#timerToggle').checked;
+
+    // маман атын жадыға да белгілеп қоямыз
+    const name = $('#expertName')?.value?.trim();
+    if (name) {
+      window.__who = window.__who || {};
+      window.__who.name = name;
+    }
+
     current = 0;
     show('#screen-quiz');
     renderQuestion();
