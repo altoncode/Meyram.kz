@@ -2,7 +2,7 @@
 'use strict';
 
 /* ===== GAS endpoint (жаңа ключ) ===== */
-const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwhpToU1iOp2yQ625DF1zdaJb5uUROaTRFGATWAOQZHjT4o3rmLkQ-K0JpcUxbYXSDg/exec';
+const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbxiy5JdVc-eZW-gGNb6uTSzePS56p1rHjxJaNQ0sdDkm9ghJVaqUQc5nid_KlP49_jE/exec';
 const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
 
 /* ===== Quiz data ===== */
