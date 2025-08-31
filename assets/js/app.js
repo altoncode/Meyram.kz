@@ -1,7 +1,7 @@
-// Meyram Quiz — app.js (JSONP + same-tab inline PDF + auto print)
+// Meyram Quiz — app.js (JSONP + same-tab HTML print)
 'use strict';
 
-const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzeWY0G_pM-Vx3YIliBYFpsH_XZCD49QBT8Y207yxlaO_siAFXq8-4louGNboWMBBbV/exec';
+const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbyA_zWnRLo58GuDTxTZv_JyYe1-RLxZCgkGkJBH-fzsJ0U5GU6TA2sro5FBTa0SanKz/exec';
 const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
 
 const DOMAINS = {
@@ -10,7 +10,6 @@ const DOMAINS = {
   EX:{ name:'Достигаторство (Орындау)',       color:'#c8a5ff', desc:'Жоспарды жүйелі орындайды, тәртіп пен дедлайнға сүйенеді.' },
   IN:{ name:'Влияние (Әсер ету)',             color:'#ffd28a', desc:'Көшбасшылық көрсетеді, көпшілікке ойды жеткізе алады.' }
 };
-
 const QUESTIONS = [
   { t:'Маған ойлануға, жалғыз отырып жоспар құруға уақыт қажет.', d:'TH' },
   { t:'Жаңа идеялар ойлап табу мені шабыттандырады.', d:'TH' },
@@ -51,10 +50,10 @@ function sanitizeFilename(name){
   s = s.replace(/[\/\\:\*\?"<>|\u0000-\u001F]+/g,'').replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'');
   return (s || 'Маман').slice(0,80);
 }
-function uid(){ return Math.random().toString(16).slice(2)+Math.random().toString(16).slice(2); }
 function setButtonsEnabled(flag){ const e=$('#btnExport'), s=$('#btnSend'); if (e) e.disabled=!flag; if (s) s.disabled=!flag; }
 
 /* ---- JSONP ---- */
+function uid(){ return Math.random().toString(16).slice(2)+Math.random().toString(16).slice(2); }
 function jsonp(url){
   return new Promise((resolve)=>{
     const cb='__CB_'+uid();
@@ -71,6 +70,16 @@ function buildCreateUrl(expert, answersArr){
   const csv = answersArr.map(v=> (v==null?-1:Number(v))).join(',');
   const qs = [
     'mode=create',
+    'secret=' + encodeURIComponent(GAS_SECRET),
+    'expert=' + encodeURIComponent(expert),
+    'answers=' + encodeURIComponent(csv)
+  ].join('&');
+  return `${GAS_ENDPOINT}?${qs}`;
+}
+function buildPrintUrl(expert, answersArr){
+  const csv = answersArr.map(v=> (v==null?-1:Number(v))).join(',');
+  const qs = [
+    'mode=print',
     'secret=' + encodeURIComponent(GAS_SECRET),
     'expert=' + encodeURIComponent(expert),
     'answers=' + encodeURIComponent(csv)
@@ -94,7 +103,7 @@ function renderQuestion(){
     btn.type='button';
     btn.className='opt';
     btn.textContent = lab;
-    // мәтіннің ақ түсін күшпен береміз (фон қара болса да көрінеді)
+    // ақ мәтін міндетті
     btn.style.setProperty('color', '#fff', 'important');
 
     if (answers[current]===idx) btn.classList.add('active');
@@ -184,7 +193,6 @@ async function ensurePdfCreated(){
   const url = buildCreateUrl(expert, answers);
   CREATE_PROMISE = jsonp(url).then(resp=>{
     CREATE_PROMISE = null;
-    // fileUrl болмаған жағдайда өзіміз құрап қоямыз
     if (resp && resp.ok && !resp.fileUrl && resp.fileId) {
       resp.fileUrl = 'https://drive.google.com/file/d/'+resp.fileId+'/view?usp=drivesdk';
     }
@@ -194,37 +202,23 @@ async function ensurePdfCreated(){
   return CREATE_PROMISE;
 }
 async function finishQuiz(){
-  showWaiting();
+  showWaiting();                // 1) күту
   LAST_PDF = null;
-  await ensurePdfCreated();
-  renderResultContent();
+  await ensurePdfCreated();     // 2) Drive-қа PDF дайын
+  renderResultContent();        // 3) UI
 }
 
 /* ---- Export / Send ---- */
-// Same-tab inline PDF + авто-print. Ешқандай жаңа таб жоқ.
 async function onExportPdf(){
-  const pdf = await ensurePdfCreated();
-  if (!pdf || !pdf.fileId) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
+  // Алдымен сервер PDF жасап қойсын (Drive-та сақталу талабы орындалады)
+  await ensurePdfCreated();
 
-  const pdfUrl = `${GAS_ENDPOINT}?mode=pdf&secret=${encodeURIComponent(GAS_SECRET)}&id=${encodeURIComponent(pdf.fileId)}`;
-  const html = `<!doctype html><html><head><meta charset="utf-8">
-  <title>${(pdf.name||'report')}.pdf</title>
-  <style>html,body{height:100%;margin:0}embed{width:100%;height:100%;border:0}</style>
-  </head><body>
-    <embed src="${pdfUrl}#view=FitH&toolbar=0&navpanes=0" type="application/pdf">
-    <script>
-      // PDF көрінген бойда print; print бітсе — алдыңғы бетке қайтамыз
-      window.addEventListener('load', ()=> setTimeout(()=>{ try{window.print()}catch(e){} }, 400));
-      window.onafterprint = ()=> { try{ history.back(); }catch(e){} };
-    <\/script>
-  </body></html>`;
-
-  const blobUrl = URL.createObjectURL(new Blob([html], {type:'text/html'}));
-  // дәл осы бетте ашамыз
-  location.replace(blobUrl);
+  // Принт — сервердің HTML бетін ашамыз (plugin емес, сондықтан бос бет болмайды)
+  const expert = sanitizeFilename($('#expertName')?.value?.trim() || 'Маман');
+  const printUrl = buildPrintUrl(expert, answers);
+  location.assign(printUrl); // осы бетте ашылады, JS ішінде window.print()
 }
 
-// Share: Web Share → WhatsApp fallback (бетке сілтеме шығармаймыз)
 async function onSendPdf(){
   const pdf = await ensurePdfCreated();
   if (!pdf || !pdf.fileUrl) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
@@ -237,7 +231,6 @@ async function onSendPdf(){
     try { await navigator.share({ title, text, url }); return; }
     catch(_) {}
   }
-  // WhatsApp fallback
   const wa = 'https://wa.me/?text=' + encodeURIComponent(`${title}\n${url}`);
   window.open(wa, '_blank', 'noopener');
 }
