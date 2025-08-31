@@ -34,12 +34,46 @@
       background:#fafafc;color:#0f0707;
       font-size:16px;font-weight:700;text-align:center;
     }
+
+    /* Жауап опцияларының мәтіні ақ түсте көрінсін */
+    .scale .opt span { color: #fff !important; }
+    .scale .opt { color: #fff; }
+
+    /* Нәтиже дайындалуда оверлейі */
+    #busyOverlay {
+      position: fixed; inset: 0; display: none;
+      background: rgba(0,0,0,.6);
+      color: #fff; z-index: 1000;
+      align-items: center; justify-content: center;
+      text-align: center; padding: 24px;
+    }
+    #busyOverlay .box {
+      background: rgba(20,20,20,.9);
+      padding: 18px 22px; border-radius: 12px;
+      min-width: 260px;
+    }
+    #busyOverlay .spin {
+      width: 24px; height: 24px; border-radius: 50%;
+      border: 3px solid rgba(255,255,255,.25);
+      border-top-color: #fff; margin: 0 auto 10px auto;
+      animation: r 0.9s linear infinite;
+    }
+    @keyframes r { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
   <noscript style="color:#b00;display:block;text-align:center;margin:10px 0;">
     Бұл тест JavaScript-ті қажет етеді. Браузеріңізде JavaScript қосулы екеніне көз жеткізіңіз.
   </noscript>
+
+  <!-- Нәтиженің PDF-і серверде дайындалғанда көрсетілетін оверлей -->
+  <div id="busyOverlay" aria-live="polite" aria-atomic="true">
+    <div class="box">
+      <div class="spin"></div>
+      <div id="busyText">Нәтиже дайындалуда…</div>
+      <div class="muted" style="margin-top:6px">Әдетте 2–5 секунд</div>
+    </div>
+  </div>
 
   <div class="wrap">
     <!-- Старт экраны -->
@@ -138,24 +172,20 @@
       </div>
 
       <div class="row" style="margin-top:14px;justify-content:space-between;gap:10px;flex-wrap:wrap">
-  <button class="btn ghost" id="btnReview">Жауаптарды қарау</button>
-  <div class="row" style="gap:10px;flex:1">
-    <button class="btn ghost" id="btnRestart">Қайта бастау</button>
-    <button class="btn primary" id="btnExport">PDF ретінде сақтау</button>
-    <button class="btn" id="btnSend">PDF жіберу (Drive)</button>
-<a id="driveLink" target="_blank" rel="noopener" style="margin-left:8px; display:inline-block;">
-  Сілтеме әзірленеді…
-</a>
-  </div>
-</div>
+        <button class="btn ghost" id="btnReview">Жауаптарды қарау</button>
+        <div class="row" style="gap:10px;flex:1; align-items:center;">
+          <button class="btn ghost" id="btnRestart">Қайта бастау</button>
 
-<!-- Жауап: дайын PDF-тің share-сілтемесін осы жерге шығарамыз -->
-<div id="driveDone" class="muted" style="display:none;margin-top:8px;">
-  PDF дайын: <a id="driveFileLink" target="_blank" rel="noopener">сілтемені ашу</a>
-  <a id="driveLink" target="_blank" rel="noopener" style="margin-left:8px;display:inline-block;"></a>
-  <button class="btn ghost" id="btnCopyLink" style="margin-left:8px;">Көшіру</button>
-</div>
+          <!-- Сервердегі дайын PDF-ты бірден ашып, print шығару -->
+          <button class="btn primary" id="btnExport">PDF ретінде сақтау</button>
 
+          <!-- Сервер дайындаған PDF-тың share-сілтемесімен Gmail compose ашу -->
+          <button class="btn" id="btnSend">PDF жіберу (Drive)</button>
+
+          <!-- Фондық статус/сілтеме (қажет болса) -->
+          <a id="driveLink" target="_blank" rel="noopener" style="margin-left:8px; display:none;"></a>
+        </div>
+      </div>
 
       <div class="footer">
         Бұл қысқартылған сынама Gallup® ресми тестін алмастырмайды. Мақсаты — домен-бағытты болжамды анықтау.
@@ -163,7 +193,7 @@
     </div>
   </div>
 
-  <!-- Негізгі логика (defer) -->
+  <!-- Негізгі логика (defer). PDF клиентте құрылмайды, бәрі сервер арқылы. -->
   <script src="assets/js/app.js" defer></script>
 </body>
 </html>
