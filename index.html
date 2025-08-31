@@ -138,13 +138,20 @@
       </div>
 
       <div class="row" style="margin-top:14px;justify-content:space-between;gap:10px;flex-wrap:wrap">
-        <button class="btn ghost" id="btnReview">Жауаптарды қарау</button>
-        <div class="row" style="gap:10px;flex:1">
-          <button class="btn ghost"   id="btnRestart">Қайта бастау</button>
-          <button class="btn primary" id="btnExport">PDF ретінде сақтау</button>
-          <button class="btn"         id="btnShare">PDF жіберу (сілтеме ашық)</button>
-        </div>
-      </div>
+  <button class="btn ghost" id="btnReview">Жауаптарды қарау</button>
+  <div class="row" style="gap:10px;flex:1">
+    <button class="btn ghost" id="btnRestart">Қайта бастау</button>
+    <button class="btn primary" id="btnExport">PDF ретінде сақтау</button>
+    <button class="btn" id="btnSend">PDF жіберу (Drive)</button> <!-- ЖАҢА -->
+  </div>
+</div>
+
+<!-- Жауап: дайын PDF-тің share-сілтемесін осы жерге шығарамыз -->
+<div id="driveDone" class="muted" style="display:none;margin-top:8px;">
+  PDF дайын: <a id="driveFileLink" target="_blank" rel="noopener">сілтемені ашу</a>
+  <button class="btn ghost" id="btnCopyLink" style="margin-left:8px;">Көшіру</button>
+</div>
+
 
       <div class="footer">
         Бұл қысқартылған сынама Gallup® ресми тестін алмастырмайды. Мақсаты — домен-бағытты болжамды анықтау.
