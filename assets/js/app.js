@@ -2,7 +2,7 @@
 // TZ: Asia/Almaty (UTC+5)
 
 // === Google Apps Script конфиг ======================
-const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzZUFbtDNt3XRiYEBIo8oFXIXn5-GeSiKo1YQZknvo81lYAi8deWO9ejfyUnI6mLp17/exec';
+const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycby_pziF5-mk60p5dXet0LLzvY_wZHPj9j0JdKwoz3pNu3-gUAdFGwrA0TDgQ4jRQT7P/exec';
 const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
 
 // --- Data ---------------------------------------------------------------
