@@ -4,7 +4,7 @@
 
 /* ================== CONFIG ================== */
 // ЖАҢА Web App ID (сіз берген)
-const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwhpToU1iOp2yQ625DF1zdaJb5uUROaTRFGATWAOQZHjT4o3rmLkQ-K0JpcUxbYXSDg/exec';
+const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbxsGmqu_3mzMrUdssGmuO-u2nMEo15HY_UK-eUtFCY2xEaJEYYPxN2K1V19BK650hGZ/exec';
 // Shared secret (сервердегісімен дәл бірдей болуы керек)
 const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
 
