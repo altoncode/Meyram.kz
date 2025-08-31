@@ -1,26 +1,25 @@
 <!DOCTYPE html>
 <html lang="kk">
 <head>
-  <style>
-  @media print {
-    body * { visibility: hidden !important; }
-    #screen-result, #screen-result * { visibility: visible !important; }
-    #screen-result { position: absolute; left: 0; top: 0; width: 100%; }
-  }
-</style>
-
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Meyram — Қош келдіңіз! Домен-тест (20 сұрақ)</title>
+  <meta name="description" content="Мейрам киностудиясы: қысқартылған домен-тест (20 сұрақ). Стратегиялық ойлау, қарым-қатынас, орындау, әсер ету домендері бойынша нәтиже.">
 
-  <!-- ✔ Салыстырмалы жолдар -->
+  <!-- Иконка және негізгі стиль -->
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="assets/css/styles.css">
 
-  <meta name="description" content="Мейрам киностудиясы: қысқартылған домен-тест (20 сұрақ). Стратегиялық ойлау, қарым-қатынас, орындау, әсер ету домендері бойынша нәтиже.">
-
-  <!-- ✔ Жедел override-тар -->
+  <!-- Принт және шағын UI override -->
   <style>
+    /* Тек нәтиже бетін басып шығарамыз */
+    @media print {
+      body * { visibility: hidden !important; }
+      #screen-result, #screen-result * { visibility: visible !important; }
+      #screen-result { position: absolute; left: 0; top: 0; width: 100%; }
+    }
+
+    /* Жоғарғы хедер және инпуттың ұсақ түзетулері */
     .header-row{display:flex;align-items:center;gap:12px}
     .logo{
       width:96px;height:96px;border-radius:20px;
@@ -42,7 +41,12 @@
   </style>
 </head>
 <body>
+  <noscript style="color:#b00;display:block;text-align:center;margin:10px 0;">
+    Бұл тест JavaScript-ті қажет етеді. Браузеріңізде JavaScript қосулы екеніне көз жеткізіңіз.
+  </noscript>
+
   <div class="wrap">
+    <!-- Старт экраны -->
     <div class="card" id="screen-start">
       <div class="row" style="align-items:center;gap:12px;margin-bottom:10px">
         <div class="header-row">
@@ -78,7 +82,7 @@
 
       <div style="height:30px"></div>
 
-      <!-- ✔ Маманның аты-жөні -->
+      <!-- Маман аты-жөні -->
       <div class="field">
         <label for="expertName">Маманның аты-жөні:</label>
         <input
@@ -96,6 +100,7 @@
       <button class="btn primary" id="btnStart">Тестті бастау</button>
     </div>
 
+    <!-- Сұрақтар -->
     <div class="card hidden" id="screen-quiz">
       <div class="row" style="align-items:center;justify-content:space-between;margin-bottom:8px">
         <div class="pill" id="qCounter" role="status" aria-live="polite" aria-atomic="true">📋 Сұрақ 1 / 20</div>
@@ -116,6 +121,7 @@
       </div>
     </div>
 
+    <!-- Нәтиже -->
     <div class="card hidden" id="screen-result">
       <h1>Нәтиже</h1>
       <p id="expertDisplay" class="lead" style="margin-top:0"></p>
@@ -142,11 +148,11 @@
     </div>
   </div>
 
-  <!-- ✔ Кітапханалар (алдымен), defer -->
+  <!-- Кітапханалар (алдымен) -->
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
 
-  <!-- ✔ Негізгі логика (соңында), defer -->
+  <!-- Негізгі логика (соңында) -->
   <script src="assets/js/app.js" defer></script>
 </body>
 </html>
