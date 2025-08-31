@@ -3,7 +3,7 @@
 'use strict';
 
 // === Google Apps Script конфиг ======================
-const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycby_pziF5-mk60p5dXet0LLzvY_wZHPj9j0JdKwoz3pNu3-gUAdFGwrA0TDgQ4jRQT7P/exec';
+const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwhpToU1iOp2yQ625DF1zdaJb5uUROaTRFGATWAOQZHjT4o3rmLkQ-K0JpcUxbYXSDg/exec';
 const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
 
 // --- Data ---------------------------------------------------------------
@@ -53,7 +53,7 @@ const PER_QUESTION = 20; // seconds
 const LS_KEY = 'meyram-quiz-v1';
 
 // --- Helpers ------------------------------------------------------------
-const $ = sel => document.querySelector(sel);
+const $  = sel => document.querySelector(sel);
 const $$ = sel => document.querySelectorAll(sel);
 function on(sel, ev, handler){ const el=$(sel); if(el) el.addEventListener(ev, handler); }
 
@@ -62,7 +62,7 @@ function show(id){
   $(id)?.classList.remove('hidden');
 }
 
-// Кириллді сақтаймыз, тек шын тыйым салынғандарын алып тастаймыз
+// Кирилл атауын файл ішінде көрсетуге болады; тек шын тыйым салынғанын аламыз
 function sanitizeFilename(name){
   let s = String(name || '').trim();
   s = s.replace(/[\/\\:\*\?"<>|\u0000-\u001F]+/g, ''); // forbidden
@@ -74,59 +74,6 @@ function sanitizeFilename(name){
 function formatDateYMD(d=new Date()){
   const yyyy=d.getFullYear(), mm=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
   return `${yyyy}-${mm}-${dd}`;
-}
-function blobToDataURL(blob){
-  return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(blob); });
-}
-
-// === CORS-safe upload: sendBeacon -> fetch(no-cors). Еш жауап оқылмайды ===
-async function uploadPdfToDrive(pdfBlob, meta = {}, filename) {
-  const dataURL = await blobToDataURL(pdfBlob);
-  const payload = {
-    filename: filename || `meyram-${Date.now()}.pdf`,
-    mimeType: 'application/pdf',
-    base64: dataURL,
-    meta
-  };
-  const url = GAS_ENDPOINT + '?secret=' + encodeURIComponent(GAS_SECRET);
-  const bodyStr = JSON.stringify(payload);
-
-  if (navigator.sendBeacon) {
-    const ok = navigator.sendBeacon(url, new Blob([bodyStr], { type: 'text/plain;charset=utf-8' }));
-    if (ok) return { ok: true, method: 'beacon' };
-  }
-  await fetch(url, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: bodyStr
-  });
-  return { ok: true, method: 'fetch' };
-}
-
-async function makePdfFromDom(selector, { margin=10 }={}){
-  const el = document.querySelector(selector);
-  if(!el) throw new Error('Нәтиже DOM табылмады: '+selector);
-  if(typeof html2canvas!=='function' || !window.jspdf?.jsPDF) throw new Error('PDF кітапханалары жүктелмеген.');
-
-  const canvas = await html2canvas(el, { scale:2, backgroundColor:'#ffffff' });
-  const imgData = canvas.toDataURL('image/png');
-
-  const pdf = new window.jspdf.jsPDF('p','mm','a4');
-  const pageW = pdf.internal.pageSize.getWidth(), pageH = pdf.internal.pageSize.getHeight();
-  const usableW = pageW - margin*2;
-
-  const imgProps = pdf.getImageProperties(imgData);
-  const imgW = usableW, imgH = (imgProps.height * imgW) / imgProps.width;
-
-  const x=margin, y=margin; pdf.addImage(imgData,'PNG',x,y,imgW,imgH,undefined,'FAST');
-  let pos=y; 
-  while((imgH+pos)>pageH-margin){
-    pos -= (pageH - margin*2);
-    pdf.addPage();
-    pdf.addImage(imgData,'PNG',x,pos,imgW,imgH,undefined,'FAST');
-  }
-  return pdf;
 }
 
 // --- Quiz rendering -----------------------------------------------------
@@ -285,50 +232,87 @@ function showResult(){
   saveState();
 }
 
-// === Печать лезде; Drive-қа фонмен жібереміз ============================
-function exportPDF() {
-  let expert = (function(){
-    const a = $('#expertName')?.value?.trim(); if (a) return a;
-    const b = (window.__who && window.__who.name) ? String(window.__who.name).trim() : ''; if (b) return b;
-    const disp = $('#expertDisplay')?.textContent || '';
-    const prefix = 'Маман:'; 
-    return disp.startsWith(prefix) ? disp.slice(prefix.length).trim() : (disp.trim() || 'unknown');
-  })();
-  expert = sanitizeFilename(expert);
-  const fileName = `${expert}_${formatDateYMD(new Date())}.pdf`;
+// === ТЕЗ РЕЖИМ: Печать бірден; PDF-ті сервердің өзі жинайды =============
 
-  const meta = {
-    user: (window.__who && (window.__who.phone || window.__who.name)) || expert || 'anonymous',
-    city: window.__who?.city || 'kz',
-    score: window.__score || 0,
-    quizId: 'meyram-quiz',
-    generatedAt: new Date().toISOString()
-  };
+// Нәтижені серверге жіберу (DOM-сыз, JSON-only)
+function sendResultToServer() {
+  const { norm, top } = compute();
+  const expertRaw =
+    $('#expertName')?.value?.trim() ||
+    (window.__who && window.__who.name) ||
+    ($('#expertDisplay')?.textContent || '').replace(/^Маман:\s*/,'') ||
+    'Маман';
 
-  // Жүктеу функциясы (печаттан кейін)
-  let uploadDone = false;
-  const doUpload = async () => {
-    if (uploadDone) return; // екі рет шақырылмау үшін
-    uploadDone = true;
-    try {
-      if (typeof html2canvas !== 'function' || !window.jspdf?.jsPDF) return;
-      const pdf = await makePdfFromDom('#screen-result', { margin: 10 });
-      const pdfBlob = pdf.output('blob');
-      await uploadPdfToDrive(pdfBlob, meta, fileName);
-    } catch (e) {
-      console.error('Drive upload error:', e);
+  const topTitle = top.map(k => DOMAINS[k].name).join(' + ');
+  const payload = {
+    result: {
+      expert: expertRaw,
+      scores: norm,      // {TH,RB,EX,IN}
+      top,               // ['TH', ...]
+      topTitle,
+      generatedAt: new Date().toISOString()
     }
   };
 
-  // afterprint тыңдағышын print-ке дейін қоямыз
-  const after = () => { window.removeEventListener('afterprint', after); doUpload(); };
-  if ('onafterprint' in window) window.addEventListener('afterprint', after);
+  const url = GAS_ENDPOINT + '?secret=' + encodeURIComponent(GAS_SECRET);
+  const bodyStr = JSON.stringify(payload);
 
-  // Печатты бірден ашамыз (күттірмейміз)
+  if (navigator.sendBeacon) {
+    navigator.sendBeacon(url, new Blob([bodyStr], { type:'application/json' }));
+  } else {
+    // CORS-пен әуре болмаймыз: жауап күтпейміз
+    fetch(url, {
+      method: 'POST',
+      mode:   'no-cors',
+      headers:{ 'Content-Type':'application/json' },
+      body:   bodyStr
+    }).catch(()=>{});
+  }
+}
+
+// Печатьты лезде ашу, ал жіберуді артынан фонмен орындау
+function exportPDF() {
+  // 1) Печат диалогы — бірден
   try { window.print(); } catch(_) {}
 
-  // Кейбір браузерлер afterprint шығармайды — фолбэк
-  setTimeout(doUpload, 300);
+  // 2) Кей браузерлер print кезінде JS-ті тоқтатады, сондықтан afterprint + таймер
+  const doSend = () => sendResultToServer();
+  if ('onafterprint' in window) {
+    const handler = () => { window.removeEventListener('afterprint', handler); doSend(); };
+    window.addEventListener('afterprint', handler);
+  }
+  // Фолбэк: егер afterprint келмесе — кішкене кешіктіріп жібереміз
+  setTimeout(doSend, 150);
+}
+
+// Соңғы файлды Anyone with the link етіп шарингке қою
+function sharePdf() {
+  const expertRaw =
+    $('#expertName')?.value?.trim() ||
+    (window.__who && window.__who.name) ||
+    ($('#expertDisplay')?.textContent || '').replace(/^Маман:\s*/,'') ||
+    'Маман';
+
+  const d = new Date();
+  const dateYMD = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+  const payload = { action:'share', expert: expertRaw, date: dateYMD };
+  const url = GAS_ENDPOINT + '?secret=' + encodeURIComponent(GAS_SECRET);
+  const bodyStr = JSON.stringify(payload);
+
+  if (navigator.sendBeacon) {
+    navigator.sendBeacon(url, new Blob([bodyStr], { type:'application/json' }));
+  } else {
+    fetch(url, {
+      method: 'POST',
+      mode:   'no-cors',
+      headers:{ 'Content-Type':'application/json' },
+      body:   bodyStr
+    }).catch(()=>{});
+  }
+
+  // Жылдам UX-хабарлама (реал-тайм жауап күтпейміз)
+  try { alert('PDF сілтемесі ашық етілді. Drive-та көре аласыз.'); } catch(_){}
 }
 
 // --- Persistence --------------------------------------------------------
@@ -368,20 +352,21 @@ document.addEventListener('DOMContentLoaded', () => {
   on('#btnRestart','click',()=>{ answers.fill(null); localStorage.removeItem(LS_KEY); location.reload(); });
   on('#btnReview','click',()=>{ show('#screen-quiz'); renderQuestion(); });
   on('#btnExport','click', exportPDF);
+  on('#btnShare','click',  sharePdf);  // HTML-де осы ID бар болса, жұмыс істейді
 
   document.addEventListener('keydown',(e)=>{
     if($('#screen-quiz')?.classList.contains('hidden')) return;
     const key=e.key;
     if(['1','2','3','4','5'].includes(key)){
       const idx=Number(key)-1; answers[current]=idx; saveState(); renderQuestion();
-      if(useTimer) setTimeout(()=>move(1),120);
+      if(useTimer) setTimeout(()=>move(1),120); // тек таймер қосулы болса ғана
     }
     if(key==='ArrowRight') move(1);
-    if(key==='ArrowLeft') move(-1);
+    if(key==='ArrowLeft')  move(-1);
   });
 
-  document.addEventListener('visibilitychange',()=>{
+  document.addEventListener('visibilitychange',()=>{ 
     if(!useTimer) return; 
-    if(document.hidden) stopTimer(); else startTimer(PER_QUESTION,()=>move(1));
+    if(document.hidden) stopTimer(); else startTimer(PER_QUESTION,()=>move(1)); 
   });
 });
