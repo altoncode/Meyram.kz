@@ -224,11 +224,39 @@ button[disabled], .btn:disabled{ opacity:.5; cursor:not-allowed; }
   .spinner{ animation:none; }
 }
 
-/* Print (қосымша қорғаныс) */
+/* ===================== PRINT ===================== */
+/* Бір бет, A4, автосәйкестендіру (JS --print-scale айнымалысын орнатса, дәлме-дәл масштабталады) */
 @media print{
+  @page { size: A4; margin: 0; }
+
   body{ background:#fff; color:#000; }
-  .wrap{ max-width:800px; }
-  #screen-start, #screen-quiz, .footer, .btn, .pill, .progress{ display:none !important; }
+  .wrap{ max-width:210mm; margin:0; padding:0; }
+
+  /* Экран элементтерін жасырамыз, нәтижені ғана қалдырамыз */
+  #screen-start, #screen-quiz, .footer, .pill, .progress, .actions-row, .btn{ display:none !important; }
   #screen-result{ display:block !important; }
-  .card{ box-shadow:none; border:0; padding:0; }
+
+  /* Автомасштаб: JS (beforeprint) --print-scale орнатады; болмаса 1x */
+  #screen-result{
+    transform-origin: top left;
+    transform: scale(var(--print-scale, 1));
+    width: calc(100% / var(--print-scale, 1));
+  }
+
+  /* Биіктікті үнемдеу үшін: шеттерді, көлеңкені алып тастаймыз */
+  .card{ box-shadow:none; border:0; padding:0; background:transparent; }
+
+  /* Баспаға ыңғайлы типографика */
+  body{ font-size:11pt; }
+  h1{ font-size:18pt; margin:0 0 10pt; }
+  .section-title{ font-size:14pt; margin:6pt 0; }
+  .tip{ font-size:11pt; color:#111; }
+
+  /* Макет бір бағанға түссін — биіктікті ұтымды қолдану */
+  .result-grid{ grid-template-columns:1fr !important; gap:8pt; }
+  .explain-grid{ grid-template-columns:1fr !important; gap:8pt; }
+
+  /* Барлар ықшам */
+  .barrow{ grid-template-columns:140pt 1fr 40pt; gap:8pt; }
+  .bartrack{ height:10pt; }
 }
