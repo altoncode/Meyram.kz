@@ -281,8 +281,7 @@ async function onSendPdf(){
     try { await navigator.share({ title, text, url }); return; }
     catch(_) {}
   }
-  const wa = 'https://wa.me/?text=' + encodeURIComponent(`${title}\n${url}`);
-  window.open(wa, '_blank', 'noopener');
+ 
 }
 
 /* ---- Wiring ---- */
