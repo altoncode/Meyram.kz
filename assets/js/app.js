@@ -1,7 +1,7 @@
 // Meyram Quiz — app.js (JSONP + same-tab PDF)
 'use strict';
 
-const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzkGbVW2GL_9X3IGHLjzvjXj0FTF4aM1l-X58Mx9BjtjHhnWiRWvjpQB2tc3ruc5UhI/exec'; // мыс: https://script.google.com/macros/s/XXXX/exec
+const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwCS5yxSVn4XOowVx_mOThJdGxpTKcX2J1gWbJexszhFXfy7t7yCtHW8VQOLbZaIFiB/exec'; // мыс: https://script.google.com/macros/s/XXXX/exec
 const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
 
 const DOMAINS = {
@@ -217,11 +217,15 @@ async function finishQuiz(){
 
 /* ---- Actions ---- */
 async function onExportPdf(){
-  const pdf = await ensurePdfCreated();
-  if (!pdf || !pdf.fileId) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
-  const url = `${GAS_ENDPOINT}?mode=pdf&secret=${encodeURIComponent(GAS_SECRET)}&id=${encodeURIComponent(pdf.fileId)}`;
-  location.assign(url); // жаңа таб ашпай, осы бетте PDF viewer
+  // Алдымен сервер PDF жасап қойсын (Drive-та сақталу талабы орындалады)
+  await ensurePdfCreated();
+
+  // Принт — сервердің HTML бетін ашамыз (plugin емес, сондықтан бос бет болмайды)
+  const expert = sanitizeFilename($('#expertName')?.value?.trim() || 'Маман');
+  const printUrl = buildPrintUrl(expert, answers);
+  location.assign(printUrl); // осы бетте ашылады, JS ішінде window.print()
 }
+
 async function onSendPdf(){
   const pdf = await ensurePdfCreated();
   if (!pdf || !pdf.fileUrl) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
