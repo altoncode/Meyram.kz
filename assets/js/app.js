@@ -1,11 +1,9 @@
-// Meyram Quiz — app.js (JSONP + same-tab inline PDF + waiting UI)
+// Meyram Quiz — app.js (JSONP + same-tab PDF)
 'use strict';
 
-/* ===== GAS endpoint ===== */
-const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbyA_zWnRLo58GuDTxTZv_JyYe1-RLxZCgkGkJBH-fzsJ0U5GU6TA2sro5FBTa0SanKz/exec';
+const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzkGbVW2GL_9X3IGHLjzvjXj0FTF4aM1l-X58Mx9BjtjHhnWiRWvjpQB2tc3ruc5UhI/exec'; // мыс: https://script.google.com/macros/s/XXXX/exec
 const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
 
-/* ===== Quiz data ===== */
 const DOMAINS = {
   TH:{ name:'Мышление (Стратегиялық ойлау)', color:'#86ffda', desc:'Идеялар, талдау, болашақты көру, стратегия құруға бейім.' },
   RB:{ name:'Отношения (Қарым-қатынас)',      color:'#6ea8fe', desc:'Команданы біріктіріп, сенім орнатады, эмпатиясы жоғары.' },
@@ -19,19 +17,16 @@ const QUESTIONS = [
   { t:'Ақпаратты терең талдауды ұнатамын.', d:'TH' },
   { t:'Күрделі мәселелерді шешкенде өзімді мықты сезінемін.', d:'TH' },
   { t:'Болашақ туралы стратегия құру маған қуат береді.', d:'TH' },
-
   { t:'Мен адамдарды біріктіріп, жылы атмосфера жасағанды жақсы көремін.', d:'RB' },
   { t:'Командадағы достық маған нәтижеден де маңызды.', d:'RB' },
   { t:'Адамдардың сезімін тез түсінемін.', d:'RB' },
   { t:'Біреуге қолдау көрсеткенде өзімді бақытты сезінемін.', d:'RB' },
   { t:'Қарым-қатынаста сенім – мен үшін ең бастысы.', d:'RB' },
-
   { t:'Жоспар құрсам, міндетті түрде соңына дейін жеткіземін.', d:'EX' },
   { t:'Маған нақты тапсырма мен дедлайн берілсе, жақсы жұмыс істеймін.', d:'EX' },
   { t:'Тәртіп пен жүйелілік маған күш береді.', d:'EX' },
   { t:'Бір күнді бос өткізсем, өзімді жайсыз сезінемін.', d:'EX' },
   { t:'Мақсатқа жету жолында кедергілерден қаймықпаймын.', d:'EX' },
-
   { t:'Көпшілік алдында сөйлегенді ұнатамын.', d:'IN' },
   { t:'Басқаларды сендіріп, өз идеяма тарту қолымнан келеді.', d:'IN' },
   { t:'Командада көшбасшы болу маған табиғи көрінеді.', d:'IN' },
@@ -39,37 +34,36 @@ const QUESTIONS = [
   { t:'Жаңа бастаманы бастауға өзгелерді ерте аламын.', d:'IN' }
 ];
 
-/* ===== State ===== */
+/* ---- State ---- */
 let current = 0;
-const answers = new Array(QUESTIONS.length).fill(null); // 0..4, null=skip
+const answers = new Array(QUESTIONS.length).fill(null);
 let useTimer = false, timerId = null;
 const PER_Q = 20;
 
-let LAST_PDF = null;      // {fileId, fileUrl, downloadUrl, name}
+let LAST_PDF = null;    // {ok,fileId,fileUrl,name}
 let CREATE_PROMISE = null;
 
 const $ = s => document.querySelector(s);
 function on(sel, ev, fn){ const el=$(sel); if(el) el.addEventListener(ev, fn); }
 function show(id){ ['#screen-start','#screen-quiz','#screen-result'].forEach(s=>$(s)?.classList.add('hidden')); $(id)?.classList.remove('hidden'); }
-function setButtonsEnabled(flag){ const e=$('#btnExport'), s=$('#btnSend'); if (e) e.disabled=!flag; if (s) s.disabled=!flag; }
-function setWaiting(flag){ const box=$('#waitBox'); if (box) box.style.display = flag ? 'flex' : 'none'; }
-function uid(){ return Math.random().toString(16).slice(2)+Math.random().toString(16).slice(2); }
 function sanitizeFilename(name){
   let s = String(name||'').trim();
   s = s.replace(/[\/\\:\*\?"<>|\u0000-\u001F]+/g,'').replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'');
   return (s || 'Маман').slice(0,80);
 }
+function uid(){ return Math.random().toString(16).slice(2)+Math.random().toString(16).slice(2); }
+function setButtonsEnabled(flag){ const e=$('#btnExport'), s=$('#btnSend'); if (e) e.disabled=!flag; if (s) s.disabled=!flag; }
 
-/* ===== JSONP ===== */
+/* ---- JSONP ---- */
 function jsonp(url){
   return new Promise((resolve)=>{
     const cb='__CB_'+uid();
     window[cb] = (data)=>{ try{ resolve(data); } finally { delete window[cb]; } };
-    const s=document.createElement('script');
-    s.src = url + (url.includes('?')?'&':'?') + 'callback=' + encodeURIComponent(cb);
-    s.async = true;
-    s.onerror = ()=> resolve({ ok:false, error:'Network' });
-    document.head.appendChild(s);
+    const sc=document.createElement('script');
+    sc.src = url + (url.includes('?')?'&':'?') + 'callback=' + encodeURIComponent(cb);
+    sc.async = true;
+    sc.onerror = ()=> resolve({ ok:false, error:'Network' });
+    document.head.appendChild(sc);
   });
 }
 function buildCreateUrl(expert, answersArr){
@@ -83,7 +77,7 @@ function buildCreateUrl(expert, answersArr){
   return `${GAS_ENDPOINT}?${qs}`;
 }
 
-/* ===== Quiz rendering ===== */
+/* ---- Quiz UI ---- */
 function renderQuestion(){
   const q = QUESTIONS[current];
   $('#qText').textContent = q.t;
@@ -94,13 +88,12 @@ function renderQuestion(){
 
   const labels = ['Мүлде сәйкес келмейді','Көбірек сәйкес келмейді','Бейтарап','Көбірек сәйкес келеді','Өте сәйкес келеді'];
   const scale = $('#scale'); scale.innerHTML='';
-
   labels.forEach((lab, idx)=>{
     const btn = document.createElement('button');
     btn.type='button';
     btn.className='opt';
     btn.textContent = lab;
-    btn.style.color = '#fff'; // ақ мәтін
+    btn.style.color = '#fff'; // ақ мәтін (қараңғы фонда көрінсін)
     if (answers[current]===idx) btn.classList.add('active');
     btn.addEventListener('click', ()=>{
       answers[current]=idx;
@@ -141,26 +134,29 @@ function compute(){
   return { raw, norm, top };
 }
 
-/* ===== Waiting → create → render ===== */
+/* ---- Waiting → create → render ---- */
 function showWaiting(){
   show('#screen-result');
   $('#expertDisplay').textContent = '';
   $('#topTitle').textContent = 'Нәтиже дайындалуда…';
-  $('#topDesc').textContent  = 'PDF жасалып, Google Drive-қа сақталып жатыр.';
-  $('#bars').innerHTML = '';
+  $('#topDesc').textContent  = 'PDF жасалып, Google Drive-қа сақталып жатыр. Бір сәт күтіңіз.';
+
+  $('#bars').innerHTML = `
+    <div class="loader-wrap">
+      <div class="spinner" aria-label="Жүктелуде" role="status"></div>
+      <div class="muted" style="margin-top:8px">Құжат дайындалып жатыр…</div>
+    </div>
+  `;
   $('#explain').innerHTML = '';
   setButtonsEnabled(false);
-  setWaiting(true);
 }
 function renderResultContent(){
-  setWaiting(false);
-
   const { norm, top } = compute();
   const name = $('#expertName')?.value?.trim() || '';
-  $('#expertDisplay').textContent = name ? `Маман: ${name}` : '';
+  $('#expertDisplay').innerHTML = name ? `<span class="hl">Маман:</span> ${name}` : '';
 
   const topNames = top.map(k=>DOMAINS[k].name).join(' + ');
-  $('#topTitle').textContent = `Басым домен: ${topNames}`;
+  $('#topTitle').innerHTML = `<span class="hl">Басым домен:</span> ${topNames}`;
   $('#topDesc').textContent  = top.length>1
     ? 'Екі (немесе одан да көп) доменіңіз тең дәрежеде күшті көрінеді — бұл жан-жақтылықты білдіреді.'
     : (DOMAINS[top[0]]?.desc || '');
@@ -177,21 +173,19 @@ function renderResultContent(){
     requestAnimationFrame(()=>{ fill.style.width=(norm[k]||0)+'%'; });
   });
 
-  // Қысқа карточкалар
-  const grid=$('#explain'); grid.innerHTML='';
-  const SUG={
+  const expl = $('#explain'); expl.innerHTML='';
+  const SUG = {
     TH:'Аналитик, стратег, сценарий архитектор, R&D, дерекке негізделген шешімдер.',
     RB:'Команда коучы, HR/қабылдау, қауымдастық жетекшісі, ата-аналармен байланыс.',
     EX:'Операциялық менеджер, продюсер, жобаны жеткізу, стандарттар мен KPI.',
     IN:'Маркетинг/PR, сахналық жүргізуші, сату көшбасшысы, қоғам алдында сөйлеу.'
   };
-  ['TH','RB','EX','IN'].forEach(k=>{
-    const card=document.createElement('div'); card.className='explain-card';
-    card.innerHTML=`
-      <div class="name">${DOMAINS[k].name}</div>
-      <div class="small">${DOMAINS[k].desc}</div>
-      <div class="small" style="margin-top:6px"><strong>Ұсынылатын рөлдер:</strong> ${SUG[k]}</div>`;
-    grid.appendChild(card);
+  Object.keys(DOMAINS).forEach(k=>{
+    const div=document.createElement('div');
+    div.innerHTML=`<div class="pill">${DOMAINS[k].name}</div>
+                   <div class="tip"><span class="hl">Түсіндірме:</span> ${DOMAINS[k].desc}<br>
+                   <span class="hl">Ұсынылатын рөлдер:</span> ${SUG[k]}</div>`;
+    expl.appendChild(div);
   });
 
   $('#progress').style.width='100%';
@@ -215,37 +209,32 @@ async function ensurePdfCreated(){
   return CREATE_PROMISE;
 }
 async function finishQuiz(){
-  showWaiting();            // 1) күту экраны + спиннер
+  showWaiting();
   LAST_PDF = null;
-  await ensurePdfCreated(); // 2) сервер PDF жасайды/немесе кештен қайтарады
-  renderResultContent();    // 3) нақты нәтиже
+  await ensurePdfCreated();
+  renderResultContent();
 }
 
-/* ===== Actions ===== */
-// PDF-ті дәл осы бетте inline ашып, print диалогын көрсетеміз
+/* ---- Actions ---- */
 async function onExportPdf(){
   const pdf = await ensurePdfCreated();
   if (!pdf || !pdf.fileId) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
   const url = `${GAS_ENDPOINT}?mode=pdf&secret=${encodeURIComponent(GAS_SECRET)}&id=${encodeURIComponent(pdf.fileId)}`;
-  location.assign(url); // жаңа таб ашпайды — сол бетте PDF-preview + print
+  location.assign(url); // жаңа таб ашпай, осы бетте PDF viewer
 }
-
-// Share (бетке сілтеме шығармаймыз)
 async function onSendPdf(){
   const pdf = await ensurePdfCreated();
   if (!pdf || !pdf.fileUrl) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
-
   const title='Meyram — домен-тест нәтижесі';
-  const text ='Нәтиже PDF:'; 
+  const text ='Нәтиже PDF:';
   const url  = pdf.fileUrl;
-
   if (navigator.share) {
-    try { await navigator.share({ title, text, url }); return; }
-    catch(_) { /* fallback жоқ: парақшаға сілтеме шығармаймыз */ }
+    try { await navigator.share({ title, text, url }); return; } catch(_) {}
   }
+  // Қажет болса мұнда WA/TG deeplink қосыңыз
 }
 
-/* ===== Wiring ===== */
+/* ---- Wire UI ---- */
 function wireUi(){
   on('#btnStart','click', ()=>{
     useTimer = !!($('#timerToggle') && $('#timerToggle').checked);
@@ -268,7 +257,6 @@ function wireUi(){
   on('#btnExport','click', onExportPdf);
   on('#btnSend'  ,'click', onSendPdf);
 
-  // hotkeys
   document.addEventListener('keydown',(e)=>{
     if($('#screen-quiz')?.classList.contains('hidden')) return;
     if (['1','2','3','4','5'].includes(e.key)){
@@ -280,5 +268,4 @@ function wireUi(){
     if (e.key==='ArrowLeft')  move(-1);
   });
 }
-
 document.addEventListener('DOMContentLoaded', wireUi);
