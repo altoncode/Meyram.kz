@@ -10,12 +10,28 @@
   <link rel="stylesheet" href="assets/css/styles.css">
 
   <style>
-    /* Тек нәтиже картасын басып шығару */
+    :root{ --print-scale:1; }
+
+    /* Тек басылатын парақ (A4) көрсетіледі */
     @media print {
+      @page { size: A4; margin: 0; }
       body * { visibility: hidden !important; }
-      #screen-result, #screen-result * { visibility: visible !important; }
-      #screen-result { position: absolute; left: 0; top: 0; width: 100%; }
+      #printSheet, #printSheet * { visibility: visible !important; }
+      #printSheet {
+        position: absolute; left: 0; top: 0;
+        width: 210mm; height: 297mm; padding: 12mm;
+        overflow: hidden; background: #fff;
+      }
+      #printContent{
+        transform-origin: top left;
+        transform: scale(var(--print-scale));
+        width: calc(100% / var(--print-scale));
+      }
     }
+
+    /* Экранда әдеттегідей көрінсін */
+    #printSheet { width: 100%; padding: 0; background: transparent; }
+    #printContent { transform: none; width: 100%; }
 
     .header-row{display:flex;align-items:center;gap:12px}
     .logo{
@@ -59,6 +75,21 @@
       animation: r 0.9s linear infinite;
     }
     @keyframes r { to { transform: rotate(360deg); } }
+
+    /* Екі негізгі картаны мәжбүрлі түрде тік ретке қоямыз */
+    #top-card, #explain-card{
+      float:none; clear:both; width:100%;
+      grid-column:1 / -1; flex:0 0 100%;
+      break-inside:avoid; page-break-inside:avoid;
+    }
+    /* Нәтижеде ешқашан қатар тұрмасын */
+    #screen-result .result-grid{
+      display:grid; grid-template-columns:1fr !important; gap:12px;
+    }
+  
+    /* Иконка-контейнер және ақ принтер эмодзи */
+    .btn .ico{display:inline-flex;align-items:center;justify-content:center;width:1.1em;height:1.1em;line-height:1;margin-right:.35em}
+    .btn .ico.white{filter: brightness(0) invert(1) contrast(1.1) saturate(0.9);} 
   </style>
 </head>
 <body>
@@ -156,29 +187,36 @@
 
     <!-- Нәтиже -->
     <div class="card hidden" id="screen-result">
-      <h1 class="section-title">Нәтиже</h1>
-      <p id="expertDisplay" class="lead" style="margin-top:0"></p>
+      <!-- A4 print sheet wrapper (баспаға тек осы кете береді) -->
+      <div id="printSheet" aria-label="A4 sheet">
+        <div id="printContent">
+          <h1 class="section-title">Нәтиже</h1>
+          <p id="expertDisplay" class="lead" style="margin-top:0"></p>
 
-      <!-- Күту индикаторы (PDF дайындалуда) -->
-      <div id="waitBox" class="waitbox" style="display:none">
-        <div class="spinner"></div>
-        <div>
-          <div><strong>Нәтиже дайындалуда…</strong></div>
-          <div class="muted">Тест нәтижеңіз есептеліп жатыр.</div>
-        </div>
-      </div>
+          <!-- Күту индикаторы (PDF дайындалуда) — экранда ғана -->
+          <div id="waitBox" class="waitbox" style="display:none">
+            <div class="spinner"></div>
+            <div>
+              <div><strong>Нәтиже дайындалуда…</strong></div>
+              <div class="muted">Тест нәтижеңіз есептеліп жатыр.</div>
+            </div>
+          </div>
 
-      <div class="result-grid">
-        <div class="card inner">
-          <div class="section-title">Басым домен</div>
-          <h3 id="topTitle" style="margin:6px 0 6px"></h3>
-          <p id="topDesc" class="tip"></p>
-          <div class="bars" id="bars"></div>
-        </div>
+          <div class="result-grid">
+            <!-- БАСЫМ ДОМЕН ӘРҚАШАН БІРІНШІ -->
+            <div id="top-card" class="card inner">
+              <div class="section-title">Басым домен</div>
+              <h3 id="topTitle" style="margin:6px 0 6px"></h3>
+              <p id="topDesc" class="tip"></p>
+              <div class="bars" id="bars"></div>
+            </div>
 
-        <div class="card inner">
-          <div class="section-title">Түсіндірме</div>
-          <div id="explain" class="explain-grid"></div>
+            <!-- ТҮСІНДІРМЕ ӘРҚАШАН КЕЙІН -->
+            <div id="explain-card" class="card inner">
+              <div class="section-title">Түсіндірме</div>
+              <div id="explain" class="explain-grid"></div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -187,10 +225,10 @@
         <button class="btn ghost" id="btnReview">Жауаптарды қарау</button>
         <button class="btn ghost" id="btnRestart">Қайта бастау</button>
         <button class="btn primary" id="btnExport">
-          <span class="ico">🧾</span> Нәтижені шығару / PDF сақтау
+          <span class="ico white" aria-hidden="true">🖨️</span> Нәтижені шығару / PDF сақтау
         </button>
         <button class="btn primary" id="btnSend">
-          <span class="ico">📤</span> Нәтижені жіберу
+          <span class="ico white" aria-hidden="true">📨</span> Нәтижені жіберу
         </button>
       </div>
     </div>
@@ -202,5 +240,59 @@
 
   <!-- Негізгі логика (defer). PDF клиентте құрылмайды, бәрі сервер арқылы. -->
   <script src="assets/js/app.js" defer></script>
+
+  <!-- Баспаға дейін бір бетке автоматтық масштаб -->
+  <script>
+    (function(){
+      function fitToA4(){
+        try{
+          var sheet = document.getElementById('printSheet');
+          var content = document.getElementById('printContent');
+          if (!sheet || !content) return;
+
+          // Алдымен масштабы 1 болсын (дұрыс өлшеу үшін)
+          sheet.style.setProperty('--print-scale', 1);
+          content.style.width = '100%';
+          content.style.transform = 'none';
+
+          // Қолжетімді биіктік — A4 (паддингпен бірге). Өлшеу үшін
+          var cs = getComputedStyle(sheet);
+          var padTop = parseFloat(cs.paddingTop)||0;
+          var padBot = parseFloat(cs.paddingBottom)||0;
+          var avail = sheet.clientHeight - padTop - padBot;
+          var need  = content.scrollHeight;
+
+          var s = Math.min(1, avail / need);
+          if (!isFinite(s) || s <= 0) return;
+          if (s < 0.65) s = 0.65; // тым ұсақ болып кетпесін
+
+          sheet.style.setProperty('--print-scale', s.toFixed(3));
+          content.style.width = 'calc(100% / ' + s.toFixed(3) + ')';
+          content.style.transform = 'scale(' + s.toFixed(3) + ')';
+        }catch(e){ /* жұтып қоямыз */ }
+      }
+
+      // Баспа алдында және экспорт батырмасына басқанда шақырамыз
+      if (window.matchMedia) {
+        var mql = window.matchMedia('print');
+        if (mql && mql.addListener) {
+          mql.addListener(function(m){ if (m.matches) fitToA4(); });
+        }
+      }
+      window.addEventListener('beforeprint', fitToA4);
+
+      // Егер app.js ішінде «экспорт» local print ашатын болса, сол сәтте де шақыруға болады
+      document.addEventListener('click', function(ev){
+        var t = ev.target;
+        if (!t) return;
+        if (t.id === 'btnExport') setTimeout(fitToA4, 0);
+      }, true);
+
+      // Қауіпсіздік үшін кішкене кідіріс арқылы да өлшеп қоямыз (экран көрінісі үшін қажет емес)
+      setTimeout(function(){
+        // Экранда ештеңе өзгертпейді, тек print кезде жұмыс істейді
+      }, 50);
+    })();
+  </script>
 </body>
 </html>
