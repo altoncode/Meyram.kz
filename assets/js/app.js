@@ -192,6 +192,35 @@ function compute(){
   return { raw, norm, top };
 }
 
+/* ====================== Explain Cards ====================== */
+function renderExplainCards(){
+  const ex = $('#explain');
+  if (!ex) return;
+
+  const SUG = {
+    TH:'Аналитик, стратег, сценарий архитектор, R&D, дерекке негізделген шешімдер.',
+    RB:'Команда коучы, HR/қабылдау, қауымдастық жетекшісі, ата-аналармен байланыс.',
+    EX:'Операциялық менеджер, продюсер, жобаны жеткізу, стандарттар мен KPI.',
+    IN:'Маркетинг/PR, сахналық жүргізуші, сату көшбасшысы, қоғам алдында сөйлеу.'
+  };
+
+  const order = ['TH','RB','EX','IN'];
+  const cards = order.map(k=>{
+    const card = document.createElement('div');
+    card.className = 'explain-card';
+    card.innerHTML = `
+      <div class="name">${DOMAINS[k].name}</div>
+      <div class="small">
+        ${DOMAINS[k].desc}<br>
+        <strong>Ұсынылатын рөлдер:</strong> ${SUG[k]}
+      </div>
+    `;
+    return card;
+  });
+
+  ex.replaceChildren(...cards);
+}
+
 /* ====================== Result render ====================== */
 function showWaiting(){
   show('#screen-result');
@@ -229,6 +258,9 @@ function renderResultContent(){
       requestAnimationFrame(()=>{ fill.style.width=(norm[k]||0)+'%'; });
     });
   }
+
+  // Түсіндірме карточкаларын саламыз
+  renderExplainCards();
 
   // Export енді дәл осы жерде ашылады (Drive күтпейміз)
   updateButtons();
@@ -287,7 +319,6 @@ async function onSendPdf(){
       try { await navigator.share({ title, text, url }); BUSY=false; updateButtons(); return; }
       catch(_) { /* түспей қалса — төмендегі fallback */ }
     }
-    // WhatsApp/Clipboard т.б. қосқың келсе — осында
     window.open(url, '_blank', 'noopener');
   } catch (e) {
     console.error(e);
