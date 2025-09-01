@@ -156,42 +156,53 @@
 
     <!-- Нәтиже -->
     <div class="card hidden" id="screen-result">
-      <h1>Нәтиже</h1>
-      <p id="expertDisplay" class="lead" style="margin-top:0"></p>
+  <h1 class="section-title">Нәтиже</h1>
+  <p id="expertDisplay" class="lead" style="margin-top:0"></p>
 
-      <div class="result-grid">
-        <div class="card inner">
-          <h3 id="topTitle" style="margin-top:0"></h3>
-          <p id="topDesc" class="tip"></p>
-          <div class="bars" id="bars"></div>
-        </div>
-        <div class="card inner">
-          <h3 style="margin-top:0">Түсіндірме</h3>
-          <div id="explain" class="grid"></div>
-        </div>
-      </div>
-
-      <div class="row" style="margin-top:14px;justify-content:space-between;gap:10px;flex-wrap:wrap">
-        <button class="btn ghost" id="btnReview">Жауаптарды қарау</button>
-        <div class="row" style="gap:10px;flex:1; align-items:center;">
-          <button class="btn ghost" id="btnRestart">Қайта бастау</button>
-
-          <!-- Сервердегі дайын PDF-ты бірден ашып, print шығару -->
-          <button class="btn primary" id="btnExport">PDF ретінде сақтау</button>
-
-          <!-- Сервер дайындаған PDF-тың share-сілтемесімен Gmail compose ашу -->
-          <button class="btn primary" id="btnSend">Нәтижеңізді жіберу </button>
-
-          <!-- Фондық статус/сілтеме (қажет болса) -->
-          <a id="driveLink" target="_blank" rel="noopener" style="margin-left:8px; display:none;"></a>
-        </div>
-      </div>
-
-      <div class="footer">
-        Бұл қысқартылған сынама Gallup® ресми тестін алмастырмайды. Мақсаты — домен-бағытты болжамды анықтау.
-      </div>
+  <!-- Күту индикаторы (PDF дайындалуда) -->
+  <div id="waitBox" class="waitbox" style="display:none">
+    <div class="spinner"></div>
+    <div>
+      <div><strong>Нәтиже дайындалуда…</strong></div>
+      <div class="muted">PDF жасалып, Google Drive-қа сақталып жатыр.</div>
     </div>
   </div>
+
+  <div class="result-grid">
+    <div class="card inner">
+      <div class="section-title">Басым домен</div>
+      <h3 id="topTitle" style="margin:6px 0 6px"></h3>
+      <p id="topDesc" class="tip"></p>
+      <div class="bars" id="bars"></div>
+    </div>
+
+    <div class="card inner">
+      <div class="section-title">Түсіндірме (қысқа карточкалар)</div>
+      <div id="explain" class="explain-grid"></div>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:14px;justify-content:space-between;gap:10px;flex-wrap:wrap">
+    <button class="btn ghost" id="btnReview">Жауаптарды қарау</button>
+
+    <!-- Батырмалар бір қатарда -->
+    <div class="actions-row">
+      <button class="btn ghost" id="btnRestart">Қайта бастау</button>
+
+      <button class="btn primary" id="btnExport">
+        <svg class="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v12h2V4h8V2zm3 4H10a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2zm0 14H10V8h7v12z"/></svg>
+        PDF ретінде сақтау
+      </button>
+
+      <button class="btn" id="btnSend">
+        <svg class="ico" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+        PDF жіберу (Drive)
+      </button>
+    </div>
+  </div>
+
+  <div class="footer">Бұл қысқартылған сынама Gallup® ресми тестін алмастырмайды. Мақсаты — домен-бағытты болжамды анықтау.</div>
+</div>
 
   <!-- Негізгі логика (defer). PDF клиентте құрылмайды, бәрі сервер арқылы. -->
   <script src="assets/js/app.js" defer></script>
