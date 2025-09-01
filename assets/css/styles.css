@@ -50,6 +50,14 @@ p.lead{
   text-align:center;
 }
 
+/* NEW: disclaimer (экранда да көрінеді) */
+.disclaimer{
+  margin-top:10px;
+  font-size:12px;
+  color:var(--muted);
+  text-align:left;
+}
+
 .row{ display:flex; gap:16px; flex-wrap:wrap; }
 .grow{ flex:1 1 280px; }
 
@@ -78,6 +86,9 @@ input:checked + .toggle::after{ left:28px; }
   background:linear-gradient(180deg,#f6f7fb,#eef1f7);
   color:#0f172a; border:1px solid rgba(15,23,42,.15);
 }
+/* Опция: .btn.send — егер “Send” түрі бөлек керек болса */
+.btn.send{ background:linear-gradient(180deg,#f6f7fb,#eef1f7); color:#0f172a; border:1px solid rgba(15,23,42,.15); }
+
 .btn .ico{ width:18px; height:18px; margin-right:8px; display:inline-block; vertical-align:middle; }
 
 button[disabled], .btn:disabled{ opacity:.5; cursor:not-allowed; }
@@ -229,11 +240,13 @@ button[disabled], .btn:disabled{ opacity:.5; cursor:not-allowed; }
 @media print{
   @page { size: A4; margin: 0; }
 
+  html, body{ height:auto; }
   body{ background:#fff; color:#000; }
   .wrap{ max-width:210mm; margin:0; padding:0; }
 
   /* Экран элементтерін жасырамыз, нәтижені ғана қалдырамыз */
-  #screen-start, #screen-quiz, .footer, .pill, .progress, .actions-row, .btn{ display:none !important; }
+  #screen-start, #screen-quiz, .footer, .pill, .progress, .actions-row, .btn,
+  #busyOverlay{ display:none !important; }          /* NEW: күту оверлейін жасырамыз */
   #screen-result{ display:block !important; }
 
   /* Автомасштаб: JS (beforeprint) --print-scale орнатады; болмаса 1x */
@@ -259,4 +272,18 @@ button[disabled], .btn:disabled{ opacity:.5; cursor:not-allowed; }
   /* Барлар ықшам */
   .barrow{ grid-template-columns:140pt 1fr 40pt; gap:8pt; }
   .bartrack{ height:10pt; }
+
+  /* NEW: дисклеймерді принтте міндетті көрсету */
+  #screen-result .disclaimer{
+    display:block !important;
+    color:#000;
+    font-size:10pt;
+    margin-top:6pt;
+  }
+
+  /* NEW: бет бөлінуін болдырмау */
+  #screen-result, #screen-result .card, #screen-result .explain-card{
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
 }
