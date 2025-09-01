@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="assets/css/styles.css">
 
   <style>
-    /* Тек нәтиже картасын басып шығарамыз */
+    /* Тек нәтиже картасын басып шығару */
     @media print {
       body * { visibility: hidden !important; }
       #screen-result, #screen-result * { visibility: visible !important; }
@@ -156,50 +156,49 @@
 
     <!-- Нәтиже -->
     <div class="card hidden" id="screen-result">
-  <h1 class="section-title">Нәтиже</h1>
-  <p id="expertDisplay" class="lead" style="margin-top:0"></p>
+      <h1 class="section-title">Нәтиже</h1>
+      <p id="expertDisplay" class="lead" style="margin-top:0"></p>
 
-  <!-- Күту индикаторы (PDF дайындалуда) -->
-  <div id="waitBox" class="waitbox" style="display:none">
-    <div class="spinner"></div>
-    <div>
-      <div><strong>Нәтиже дайындалуда…</strong></div>
-      <div class="muted">PDF жасалып, Google Drive-қа сақталып жатыр.</div>
+      <!-- Күту индикаторы (PDF дайындалуда) -->
+      <div id="waitBox" class="waitbox" style="display:none">
+        <div class="spinner"></div>
+        <div>
+          <div><strong>Нәтиже дайындалуда…</strong></div>
+          <div class="muted">PDF жасалып, Google Drive-қа сақталып жатыр.</div>
+        </div>
+      </div>
+
+      <div class="result-grid">
+        <div class="card inner">
+          <div class="section-title">Басым домен</div>
+          <h3 id="topTitle" style="margin:6px 0 6px"></h3>
+          <p id="topDesc" class="tip"></p>
+          <div class="bars" id="bars"></div>
+        </div>
+
+        <div class="card inner">
+          <div class="section-title">Түсіндірме (қысқа карточкалар)</div>
+          <div id="explain" class="explain-grid"></div>
+        </div>
+      </div>
+
+      <!-- Әрекет батырмалары (UNIQUE id-тер!) -->
+      <div class="row actions-row" style="margin-top:14px;gap:10px;flex-wrap:wrap;justify-content:flex-end">
+        <button class="btn ghost" id="btnReview">Жауаптарды қарау</button>
+        <button class="btn ghost" id="btnRestart">Қайта бастау</button>
+        <button class="btn primary" id="btnExport">
+          <span class="ico">🧾</span> PDF ретінде сақтау
+        </button>
+        <button class="btn share" id="btnSend">
+          <span class="ico">📤</span> PDF жіберу (Drive)
+        </button>
+      </div>
+    </div>
+
+    <div class="footer">
+      Бұл қысқартылған сынама Gallup® ресми тестін алмастырмайды. Мақсаты — домен-бағытты болжамды анықтау.
     </div>
   </div>
-
-  <div class="result-grid">
-    <div class="card inner">
-      <div class="section-title">Басым домен</div>
-      <h3 id="topTitle" style="margin:6px 0 6px"></h3>
-      <p id="topDesc" class="tip"></p>
-      <div class="bars" id="bars"></div>
-    </div>
-
-    <div class="card inner">
-      <div class="section-title">Түсіндірме (қысқа карточкалар)</div>
-      <div id="explain" class="explain-grid"></div>
-    </div>
-  </div>
-
-  <div class="row" style="margin-top:14px;justify-content:space-between;gap:10px;flex-wrap:wrap">
-    <button class="btn ghost" id="btnReview">Жауаптарды қарау</button>
-
-    <!-- Батырмалар бір қатарда -->
-    <div class="row actions-row" style="margin-top:14px;">
-  <button class="btn ghost" id="btnReview">Жауаптарды қарау</button>
-  <button class="btn ghost" id="btnRestart">Қайта бастау</button>
-
-  <button class="btn primary" id="btnExport">
-    <span class="ico">🧾</span> PDF ретінде сақтау
-  </button>
-  <button class="btn share" id="btnSend">
-    <span class="ico">📤</span> PDF жіберу (Drive)
-  </button>
-</div>
-</div>
-  <div class="footer">Бұл қысқартылған сынама Gallup® ресми тестін алмастырмайды. Мақсаты — домен-бағытты болжамды анықтау.</div>
-</div>
 
   <!-- Негізгі логика (defer). PDF клиентте құрылмайды, бәрі сервер арқылы. -->
   <script src="assets/js/app.js" defer></script>
