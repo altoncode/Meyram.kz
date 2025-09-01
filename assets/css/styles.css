@@ -9,16 +9,6 @@
   --danger:#ff7b86;
   --ok:#38d39f;
 }
-:root{
-  --base: 13px;          /* жалпы шрифт (компакт) */
-  --card-pad: 12px;      /* карточка ішіндегі отступ */
-  --logo-base: 120px;    /* бастапқы ені */
-  --logo-scale: 0.8;     /* <<< 20% кішірейту */
-  --page-scale: 0.96;    /* <<< бүкіл бетті аздап кішірейту (1 бетке сыю үшін) */
-}
-@page { size: A4; margin: 10mm; }
-.page{ margin:10mm; transform:scale(var(--page-scale)); transform-origin: top left; }
-img.brand{ width: calc(var(--logo-base) * var(--logo-scale)); height:auto; object-fit:contain; display:block }
 
 *{ box-sizing:border-box }
 
