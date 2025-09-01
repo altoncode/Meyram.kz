@@ -1,16 +1,17 @@
-// Meyram Quiz — app.js (JSONP + same-tab PDF)
+// Meyram Quiz — app.js (JSONP + same-tab HTML print)
 'use strict';
 
-const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwCS5yxSVn4XOowVx_mOThJdGxpTKcX2J1gWbJexszhFXfy7t7yCtHW8VQOLbZaIFiB/exec'; // мыс: https://script.google.com/macros/s/XXXX/exec
+/* ===== GAS config ===== */
+const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwCS5yxSVn4XOowVx_mOThJdGxpTKcX2J1gWbJexszhFXfy7t7yCtHW8VQOLbZaIFiB/exec';
 const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
 
+/* ===== Quiz data ===== */
 const DOMAINS = {
   TH:{ name:'Мышление (Стратегиялық ойлау)', color:'#86ffda', desc:'Идеялар, талдау, болашақты көру, стратегия құруға бейім.' },
   RB:{ name:'Отношения (Қарым-қатынас)',      color:'#6ea8fe', desc:'Команданы біріктіріп, сенім орнатады, эмпатиясы жоғары.' },
   EX:{ name:'Достигаторство (Орындау)',       color:'#c8a5ff', desc:'Жоспарды жүйелі орындайды, тәртіп пен дедлайнға сүйенеді.' },
   IN:{ name:'Влияние (Әсер ету)',             color:'#ffd28a', desc:'Көшбасшылық көрсетеді, көпшілікке ойды жеткізе алады.' }
 };
-
 const QUESTIONS = [
   { t:'Маған ойлануға, жалғыз отырып жоспар құруға уақыт қажет.', d:'TH' },
   { t:'Жаңа идеялар ойлап табу мені шабыттандырады.', d:'TH' },
@@ -19,7 +20,7 @@ const QUESTIONS = [
   { t:'Болашақ туралы стратегия құру маған қуат береді.', d:'TH' },
   { t:'Мен адамдарды біріктіріп, жылы атмосфера жасағанды жақсы көремін.', d:'RB' },
   { t:'Командадағы достық маған нәтижеден де маңызды.', d:'RB' },
-  { t:'Адамдардың сезімін тез түсінемін.', d:'RB' },
+  { t:'Адамдардың сезінін тез түсінемін.', d:'RB' },
   { t:'Біреуге қолдау көрсеткенде өзімді бақытты сезінемін.', d:'RB' },
   { t:'Қарым-қатынаста сенім – мен үшін ең бастысы.', d:'RB' },
   { t:'Жоспар құрсам, міндетті түрде соңына дейін жеткіземін.', d:'EX' },
@@ -34,35 +35,37 @@ const QUESTIONS = [
   { t:'Жаңа бастаманы бастауға өзгелерді ерте аламын.', d:'IN' }
 ];
 
-/* ---- State ---- */
+/* ===== State ===== */
 let current = 0;
 const answers = new Array(QUESTIONS.length).fill(null);
 let useTimer = false, timerId = null;
 const PER_Q = 20;
 
-let LAST_PDF = null;    // {ok,fileId,fileUrl,name}
-let CREATE_PROMISE = null;
+let LAST_PDF = null;        // { ok, fileId, fileUrl, name }
+let CREATE_PROMISE = null;  // duplicate create-тен қорғайды
 
+/* ===== Utilities ===== */
 const $ = s => document.querySelector(s);
-function on(sel, ev, fn){ const el=$(sel); if(el) el.addEventListener(ev, fn); }
+function on(sel, ev, fn){ const el=$(sel); if (el) el.addEventListener(ev, fn); }
 function show(id){ ['#screen-start','#screen-quiz','#screen-result'].forEach(s=>$(s)?.classList.add('hidden')); $(id)?.classList.remove('hidden'); }
 function sanitizeFilename(name){
   let s = String(name||'').trim();
   s = s.replace(/[\/\\:\*\?"<>|\u0000-\u001F]+/g,'').replace(/\s+/g,'_').replace(/_+/g,'_').replace(/^_+|_+$/g,'');
   return (s || 'Маман').slice(0,80);
 }
-function uid(){ return Math.random().toString(16).slice(2)+Math.random().toString(16).slice(2); }
 function setButtonsEnabled(flag){ const e=$('#btnExport'), s=$('#btnSend'); if (e) e.disabled=!flag; if (s) s.disabled=!flag; }
+function uid(){ return Math.random().toString(16).slice(2)+Math.random().toString(16).slice(2); }
 
-/* ---- JSONP ---- */
+/* ===== JSONP ===== */
 function jsonp(url){
   return new Promise((resolve)=>{
-    const cb='__CB_'+uid();
+    const cb = '__CB_' + uid();
     window[cb] = (data)=>{ try{ resolve(data); } finally { delete window[cb]; } };
-    const sc=document.createElement('script');
+    const sc = document.createElement('script');
     sc.src = url + (url.includes('?')?'&':'?') + 'callback=' + encodeURIComponent(cb);
     sc.async = true;
     sc.onerror = ()=> resolve({ ok:false, error:'Network' });
+    sc.onload  = ()=> { try{ document.head.removeChild(sc); }catch(_){} };
     document.head.appendChild(sc);
   });
 }
@@ -76,8 +79,18 @@ function buildCreateUrl(expert, answersArr){
   ].join('&');
   return `${GAS_ENDPOINT}?${qs}`;
 }
+function buildPrintUrl(expert, answersArr){
+  const csv = answersArr.map(v=> (v==null?-1:Number(v))).join(',');
+  const qs = [
+    'mode=print', // сервер HTML шығарып, ішінде window.print() шақырады
+    'secret=' + encodeURIComponent(GAS_SECRET),
+    'expert=' + encodeURIComponent(expert),
+    'answers=' + encodeURIComponent(csv)
+  ].join('&');
+  return `${GAS_ENDPOINT}?${qs}`;
+}
 
-/* ---- Quiz UI ---- */
+/* ===== Quiz rendering ===== */
 function renderQuestion(){
   const q = QUESTIONS[current];
   $('#qText').textContent = q.t;
@@ -93,19 +106,19 @@ function renderQuestion(){
     btn.type='button';
     btn.className='opt';
     btn.textContent = lab;
-    btn.style.color = '#fff'; // ақ мәтін (қараңғы фонда көрінсін)
+    // Қара фонда анық көрінуі үшін ақ мәтін:
+    btn.style.setProperty('color', '#fff', 'important');
     if (answers[current]===idx) btn.classList.add('active');
     btn.addEventListener('click', ()=>{
       answers[current]=idx;
       renderQuestion();
-      if (useTimer) setTimeout(()=>move(1), 120);
+      if (useTimer) setTimeout(()=>move(1),120);
     });
     scale.appendChild(btn);
   });
 
   $('#timerPill').style.display = useTimer ? 'inline-flex' : 'none';
   if (useTimer) startTimer(PER_Q, ()=>move(1)); else stopTimer();
-
   $('#btnBack').disabled = (current===0);
 }
 function move(d){
@@ -115,51 +128,49 @@ function move(d){
   if (current>=QUESTIONS.length){ finishQuiz(); return; }
   renderQuestion();
 }
-function startTimer(sec, onDone){
+function startTimer(sec,onDone){
   let left=sec; $('#timer').textContent=left;
   timerId=setInterval(()=>{ left--; $('#timer').textContent=left; if(left<=0){ stopTimer(); onDone&&onDone(); } },1000);
 }
-function stopTimer(){ if(timerId){ clearInterval(timerId); timerId=null; } }
+function stopTimer(){ if (timerId){ clearInterval(timerId); timerId=null; } }
 
 function compute(){
   const per={TH:[],RB:[],EX:[],IN:[]}; QUESTIONS.forEach((q,i)=> per[q.d].push(answers[i]));
   const raw={}, norm={};
-  for(const k of Object.keys(per)){
-    const arr=per[k].filter(v=>v!=null); const sum=arr.reduce((a,b)=>a+Number(b),0);
+  for (const k of Object.keys(per)){
+    const arr=per[k].filter(v=>v!=null);
+    const sum=arr.reduce((a,b)=>a+Number(b),0);
     const denom=Math.max(arr.length*4,1);
     raw[k]=sum; norm[k]=Math.round((sum/denom)*100);
   }
-  const max=Math.max(...Object.values(raw));
-  const top=Object.entries(raw).filter(([,v])=>v===max).map(([k])=>k);
+  const max = Math.max(...Object.values(raw));
+  const top = Object.entries(raw).filter(([,v])=>v===max).map(([k])=>k);
   return { raw, norm, top };
 }
 
-/* ---- Waiting → create → render ---- */
+/* ===== Waiting → create → render ===== */
 function showWaiting(){
   show('#screen-result');
   $('#expertDisplay').textContent = '';
-  $('#topTitle').textContent = 'Нәтиже дайындалуда…';
-  $('#topDesc').textContent  = 'PDF жасалып, Google Drive-қа сақталып жатыр. Бір сәт күтіңіз.';
-
-  $('#bars').innerHTML = `
-    <div class="loader-wrap">
-      <div class="spinner" aria-label="Жүктелуде" role="status"></div>
-      <div class="muted" style="margin-top:8px">Құжат дайындалып жатыр…</div>
-    </div>
-  `;
+  $('#topTitle').textContent = 'Нәтижеңіз дайындалуда…';
+  $('#topDesc').textContent  = 'Кішкене күтіңіз. PDF серверде құрып, Drive-қа сақталуда.';
+  $('#bars').innerHTML = '';
   $('#explain').innerHTML = '';
   setButtonsEnabled(false);
 }
 function renderResultContent(){
   const { norm, top } = compute();
+
   const name = $('#expertName')?.value?.trim() || '';
-  $('#expertDisplay').innerHTML = name ? `<span class="hl">Маман:</span> ${name}` : '';
+  $('#expertDisplay').textContent = name ? `Маман: ${name}` : '';
 
   const topNames = top.map(k=>DOMAINS[k].name).join(' + ');
-  $('#topTitle').innerHTML = `<span class="hl">Басым домен:</span> ${topNames}`;
+  $('#topTitle').textContent = `Басым домен: ${topNames}`;
   $('#topDesc').textContent  = top.length>1
     ? 'Екі (немесе одан да көп) доменіңіз тең дәрежеде күшті көрінеді — бұл жан-жақтылықты білдіреді.'
     : (DOMAINS[top[0]]?.desc || '');
+
+  $('#progress').style.width='100%';
 
   const bars=$('#bars'); bars.innerHTML='';
   ['TH','RB','EX','IN'].forEach(k=>{
@@ -170,25 +181,25 @@ function renderResultContent(){
     fill.style.background=`linear-gradient(90deg, ${DOMAINS[k].color}, #6ea8fe)`; fill.style.width='0%';
     const pct=document.createElement('div'); pct.textContent=(norm[k]||0)+'%'; pct.style.textAlign='right';
     track.appendChild(fill); row.append(lab,track,pct); bars.appendChild(row);
-    requestAnimationFrame(()=>{ fill.style.width=(norm[k]||0)+'%'; });
+    requestAnimationFrame(()=> fill.style.width=(norm[k]||0)+'%');
   });
 
-  const expl = $('#explain'); expl.innerHTML='';
-  const SUG = {
+  // Түсіндірме (визуал)
+  const ex=$('#explain'); ex.innerHTML='';
+  const SUG={
     TH:'Аналитик, стратег, сценарий архитектор, R&D, дерекке негізделген шешімдер.',
     RB:'Команда коучы, HR/қабылдау, қауымдастық жетекшісі, ата-аналармен байланыс.',
     EX:'Операциялық менеджер, продюсер, жобаны жеткізу, стандарттар мен KPI.',
     IN:'Маркетинг/PR, сахналық жүргізуші, сату көшбасшысы, қоғам алдында сөйлеу.'
   };
-  Object.keys(DOMAINS).forEach(k=>{
-    const div=document.createElement('div');
-    div.innerHTML=`<div class="pill">${DOMAINS[k].name}</div>
-                   <div class="tip"><span class="hl">Түсіндірме:</span> ${DOMAINS[k].desc}<br>
-                   <span class="hl">Ұсынылатын рөлдер:</span> ${SUG[k]}</div>`;
-    expl.appendChild(div);
+  ['TH','RB','EX','IN'].forEach(k=>{
+    const wrap=document.createElement('div'); wrap.style.margin='10px 0';
+    const pill=document.createElement('div'); pill.className='pill'; pill.textContent=DOMAINS[k].name;
+    const tip=document.createElement('div'); tip.className='tip'; tip.style.color='#e9edf6'; tip.style.lineHeight='1.55';
+    tip.innerHTML = `${DOMAINS[k].desc}<br><strong>Ұсынылатын рөлдер:</strong> ${SUG[k]}`;
+    wrap.append(pill, tip); ex.appendChild(wrap);
   });
 
-  $('#progress').style.width='100%';
   setButtonsEnabled(!!LAST_PDF);
 }
 async function ensurePdfCreated(){
@@ -203,6 +214,9 @@ async function ensurePdfCreated(){
   const url = buildCreateUrl(expert, answers);
   CREATE_PROMISE = jsonp(url).then(resp=>{
     CREATE_PROMISE = null;
+    if (resp && resp.ok && !resp.fileUrl && resp.fileId) {
+      resp.fileUrl = 'https://drive.google.com/file/d/'+resp.fileId+'/view?usp=drivesdk';
+    }
     LAST_PDF = (resp && resp.ok) ? resp : null;
     return LAST_PDF;
   });
@@ -211,39 +225,43 @@ async function ensurePdfCreated(){
 async function finishQuiz(){
   showWaiting();
   LAST_PDF = null;
-  await ensurePdfCreated();
+  await ensurePdfCreated(); // сервер PDF жасап, Drive-қа сақтайды
   renderResultContent();
 }
 
-/* ---- Actions ---- */
+/* ===== Export / Send ===== */
+// PDF ретінде сақтау: сервердегі mode=print HTML-ін осы бетте ашамыз (онда window.print())
 async function onExportPdf(){
-  // Алдымен сервер PDF жасап қойсын (Drive-та сақталу талабы орындалады)
-  await ensurePdfCreated();
+  await ensurePdfCreated(); // Drive-та файл дайын екеніне көз жеткіземіз
 
-  // Принт — сервердің HTML бетін ашамыз (plugin емес, сондықтан бос бет болмайды)
   const expert = sanitizeFilename($('#expertName')?.value?.trim() || 'Маман');
   const printUrl = buildPrintUrl(expert, answers);
-  location.assign(printUrl); // осы бетте ашылады, JS ішінде window.print()
+  location.assign(printUrl); // same-tab, ешқандай popup жоқ
 }
 
+// Жіберу: Web Share → WhatsApp fallback
 async function onSendPdf(){
   const pdf = await ensurePdfCreated();
   if (!pdf || !pdf.fileUrl) { alert('PDF дайын емес. Кейін қайталап көріңіз.'); return; }
+
   const title='Meyram — домен-тест нәтижесі';
   const text ='Нәтиже PDF:';
   const url  = pdf.fileUrl;
+
   if (navigator.share) {
-    try { await navigator.share({ title, text, url }); return; } catch(_) {}
+    try { await navigator.share({ title, text, url }); return; }
+    catch(_) { /* fallback-қа өтеміз */ }
   }
-  // Қажет болса мұнда WA/TG deeplink қосыңыз
+  const wa = 'https://wa.me/?text=' + encodeURIComponent(`${title}\n${url}`);
+  window.open(wa, '_blank', 'noopener');
 }
 
-/* ---- Wire UI ---- */
+/* ===== Wiring ===== */
 function wireUi(){
   on('#btnStart','click', ()=>{
     useTimer = !!($('#timerToggle') && $('#timerToggle').checked);
     const name=$('#expertName')?.value?.trim();
-    if(name){ window.__who = window.__who || {}; window.__who.name = name; }
+    if (name){ window.__who = window.__who || {}; window.__who.name = name; }
     current=0; show('#screen-quiz'); renderQuestion();
   });
 
@@ -262,7 +280,7 @@ function wireUi(){
   on('#btnSend'  ,'click', onSendPdf);
 
   document.addEventListener('keydown',(e)=>{
-    if($('#screen-quiz')?.classList.contains('hidden')) return;
+    if ($('#screen-quiz')?.classList.contains('hidden')) return;
     if (['1','2','3','4','5'].includes(e.key)){
       answers[current]=Number(e.key)-1;
       renderQuestion();
