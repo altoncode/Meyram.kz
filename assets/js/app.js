@@ -5,7 +5,7 @@ const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwMZEMNzhnGAXw6MQX
 const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
 
 const DOMAINS = {
-  TH:{ name:'Мышление (Стратегиялық ойлау)', color:'#86ffda', desc:'Идеялар, талдау, болашақты көру, стратегия құруға бейім.' },
+  TH:{ name:'Мышление (Стратегиялық ойлау)', color:'#86ffда', desc:'Идеялар, талдау, болашақты көру, стратегия құруға бейім.' },
   RB:{ name:'Отношения (Қарым-қатынас)',      color:'#6ea8fe', desc:'Команданы біріктіріп, сенім орнатады, эмпатиясы жоғары.' },
   EX:{ name:'Достигаторство (Орындау)',       color:'#c8a5ff', desc:'Жоспарды жүйелі орындайды, тәртіп пен дедлайнға сүйенеді.' },
   IN:{ name:'Влияние (Әсер ету)',             color:'#ffd28a', desc:'Көшбасшылық көрсетеді, көпшілікке ойды жеткізе алады.' }
@@ -64,16 +64,11 @@ function isComplete(){ return answers.length===Q_LEN && answers.every(isAnswered
 function setButtonsEnabled(flag){
   const e=$('#btnExport'), s=$('#btnSend');
   if (e) e.disabled = !flag || BUSY;
-  if (s) s.disabled = BUSY; // SEND әрқашан қолжетімді (Drive-ты ішінде өзі жасайды)
+  if (s) s.disabled = BUSY; // SEND қолжетімді, тек BUSY кезінде бұғат
 }
 function updateButtons(){
   const onResult = !$('#screen-result')?.classList.contains('hidden');
-  if (onResult){
-    // Export — нәтижеде әрқашан қолжетімді. Send — BUSY болмаса қолжетімді.
-    setButtonsEnabled(true);
-  } else {
-    setButtonsEnabled(false);
-  }
+  setButtonsEnabled(!!onResult);
 }
 
 /* ====================== JSONP ====================== */
@@ -86,7 +81,7 @@ function jsonp(url, timeoutMs=15000){
     window[cb] = (data)=> finish(data);
 
     const sc=document.createElement('script');
-    sc.src = url + (url.includes('?')?'&':'?') + 'callback=' + cb; // server safeCbName_ қолдайды
+    sc.src = url + (url.includes('?')?'&':'?') + 'callback=' + cb;
     sc.async = true;
     sc.onerror = ()=> finish({ ok:false, error:'Network' });
     sc.onload  = ()=> { try{ sc.remove(); } catch(_){} };
@@ -140,7 +135,7 @@ function renderQuestion(){
       btn.type='button';
       btn.className='opt';
       btn.textContent = lab;
-      btn.style.setProperty('color', '#fff', 'important'); // ақ мәтін
+      btn.style.setProperty('color', '#fff', 'important');
       if (answers[current]===idx) btn.classList.add('active');
       btn.addEventListener('click', ()=>{
         answers[current]=idx;
@@ -182,7 +177,7 @@ function compute(){
   QUESTIONS.forEach((q,i)=> per[q.d].push(answers[i]));
   const raw={}, norm={};
   for(const k of Object.keys(per)){
-    const arr=per[k].filter(v=> isAnswered(v));  // ❗️-1/NULL есептен тыс
+    const arr=per[k].filter(v=> isAnswered(v));
     const sum=arr.reduce((a,b)=>a+Number(b),0);
     const denom=Math.max(arr.length*4,1);
     raw[k]=sum; norm[k]=Math.round((sum/denom)*100);
@@ -259,10 +254,9 @@ function renderResultContent(){
     });
   }
 
-  // Түсіндірме карточкаларын саламыз
+  // Түсіндірме карточкалары
   renderExplainCards();
 
-  // Export енді дәл осы жерде ашылады (Drive күтпейміз)
   updateButtons();
 }
 
@@ -289,20 +283,15 @@ async function ensurePdfCreated(){
 /* ====================== Finish flow ====================== */
 async function finishQuiz(){
   showWaiting();
-
-  // Нәтижені бірден көрсетеміз (Export қолжетімді болады)
-  renderResultContent();
-
-  // Drive-қа сақтауды фондық түрде бастаймыз — дайын болғанда Send батырмасы "сілтемемен" бөліседі
-  ensurePdfCreated().then(()=> updateButtons());
+  renderResultContent();                  // Экранды бірден толтырамыз
+  ensurePdfCreated().then(()=> updateButtons()); // Drive фондық түрде
 }
 
 /* ====================== Export / Send ====================== */
 async function onExportPdf(){
-  // ❗️Export үшін Drive күтудің қажеті жоқ
   const expert = sanitizeFilename($('#expertName')?.value?.trim() || 'Маман');
-  const printUrl = buildPrintUrl(expert); // сервер HTML шығарып, ішінде window.print()
-  location.assign(printUrl);              // жаңа таб ашпай, осы бетте
+  const printUrl = buildPrintUrl(expert);
+  location.assign(printUrl);              // same-tab print
 }
 
 async function onSendPdf(){
@@ -317,7 +306,7 @@ async function onSendPdf(){
 
     if (navigator.share) {
       try { await navigator.share({ title, text, url }); BUSY=false; updateButtons(); return; }
-      catch(_) { /* түспей қалса — төмендегі fallback */ }
+      catch(_) { /* fallback төменде */ }
     }
     window.open(url, '_blank', 'noopener');
   } catch (e) {
@@ -332,12 +321,14 @@ async function onSendPdf(){
 function wireUi(){
   on('#btnStart','click', ()=>{
     useTimer = !!($('#timerToggle') && $('#timerToggle').checked);
-    const name=$('#expertName')?.value?.trim(); if(name){ window.__who = window.__who || {}; window.__who.name = name; }
+    const name=$('#expertName')?.value?.trim();
+    if(name){ window.__who = window.__who || {}; window.__who.name = name; }
     current=0; show('#screen-quiz'); renderQuestion();
   });
   on('#btnNext','click', ()=>{
     if (!isAnswered(answers[current])){
-      const pill=$('#qHint'); if (pill){ const old=pill.textContent; pill.textContent='Алдымен жауап беріңіз 🙂'; setTimeout(()=>pill.textContent=old,1200); }
+      const pill=$('#qHint');
+      if (pill){ const old=pill.textContent; pill.textContent='Алдымен жауап беріңіз 🙂'; setTimeout(()=>pill.textContent=old,1200); }
       return;
     }
     move(1);
