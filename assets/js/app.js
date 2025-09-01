@@ -1,7 +1,7 @@
 // Meyram Quiz — app.js (JSONP + same-tab HTML print)
 'use strict';
 
-const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwATSALG3c03ytF_J9jWfkQWJvoquzOaqt90cU3Zid4w-uzU_X8sRLLpqmZYdfklYxh/exec';
+const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwhavrh-ch3KOBfxuTNiKb3BZQ3D79mW3lwLc__Fdq3BxuFlq8v2kHDvl-tzzNXWnyV/exec';
 const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
 
 const DOMAINS = {
