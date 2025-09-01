@@ -76,20 +76,19 @@
     }
     @keyframes r { to { transform: rotate(360deg); } }
 
-    /* Екі негізгі картаны мәжбүрлі түрде тік ретке қоямыз */
+    /* Екі негізгі картаны ешқашан қатар тұрғызбаймыз */
     #top-card, #explain-card{
       float:none; clear:both; width:100%;
       grid-column:1 / -1; flex:0 0 100%;
       break-inside:avoid; page-break-inside:avoid;
     }
-    /* Нәтижеде ешқашан қатар тұрмасын */
     #screen-result .result-grid{
       display:grid; grid-template-columns:1fr !important; gap:12px;
     }
-  
-    /* Иконка-контейнер және ақ принтер эмодзи */
+
+    /* Иконка-контейнер және ақ принтер/конверт эмодзи */
     .btn .ico{display:inline-flex;align-items:center;justify-content:center;width:1.1em;height:1.1em;line-height:1;margin-right:.35em}
-    .btn .ico.white{filter: brightness(0) invert(1) contrast(1.1) saturate(0.9);} 
+    .btn .ico.white{filter: brightness(0) invert(1) contrast(1.1) saturate(0.9);}
   </style>
 </head>
 <body>
@@ -217,18 +216,23 @@
               <div id="explain" class="explain-grid"></div>
             </div>
           </div>
+
+          <!-- ДИСКЛЕЙМЕР — принтте де міндетті шығады -->
+          <p id="disclaimer" class="disclaimer">
+            Бұл қысқартылған сынама Gallup® ресми тестін алмастырмайды. Мақсаты — домен-бағытты болжамды анықтау.
+          </p>
         </div>
       </div>
 
-      <!-- Әрекет батырмалары (UNIQUE id-тер!) -->
+      <!-- Әрекет батырмалары -->
       <div class="row actions-row" style="margin-top:14px;gap:10px;flex-wrap:wrap;justify-content:flex-end">
         <button class="btn ghost" id="btnReview">Жауаптарды қарау</button>
         <button class="btn ghost" id="btnRestart">Қайта бастау</button>
         <button class="btn primary" id="btnExport">
           <span class="ico white" aria-hidden="true">🖨️</span> Нәтижені шығару / PDF сақтау
         </button>
-        <button class="btn primary" id="btnSend">
-          <span class="ico white" aria-hidden="true">📨</span> Нәтижені жіберу
+        <button class="btn send" id="btnSend">
+          <span class="ico" aria-hidden="true">📨</span> Нәтижені жіберу
         </button>
       </div>
     </div>
@@ -255,7 +259,7 @@
           content.style.width = '100%';
           content.style.transform = 'none';
 
-          // Қолжетімді биіктік — A4 (паддингпен бірге). Өлшеу үшін
+          // Қолжетімді биіктік — A4 (паддингпен бірге)
           var cs = getComputedStyle(sheet);
           var padTop = parseFloat(cs.paddingTop)||0;
           var padBot = parseFloat(cs.paddingBottom)||0;
@@ -281,17 +285,11 @@
       }
       window.addEventListener('beforeprint', fitToA4);
 
-      // Егер app.js ішінде «экспорт» local print ашатын болса, сол сәтте де шақыруға болады
+      // Жергілікті экспорт батырмасы арқылы принт ашылса — дәл осы сәтте де
       document.addEventListener('click', function(ev){
-        var t = ev.target;
-        if (!t) return;
-        if (t.id === 'btnExport') setTimeout(fitToA4, 0);
+        var t = ev.target && (ev.target.id ? ev.target : ev.target.closest('#btnExport'));
+        if (t && t.id === 'btnExport') setTimeout(fitToA4, 0);
       }, true);
-
-      // Қауіпсіздік үшін кішкене кідіріс арқылы да өлшеп қоямыз (экран көрінісі үшін қажет емес)
-      setTimeout(function(){
-        // Экранда ештеңе өзгертпейді, тек print кезде жұмыс істейді
-      }, 50);
     })();
   </script>
 </body>
