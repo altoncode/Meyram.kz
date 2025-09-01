@@ -228,7 +228,7 @@ function renderResultContent(){
   const eD=$('#expertDisplay'); if (eD) eD.textContent = name ? `Маман: ${name}` : '';
 
   const topNames = top.length ? top.map(k=>DOMAINS[k].name).join(' + ') : '—';
-  const tt=$('#topTitle'); if (tt) tt.textContent = `Басым домен: ${topNames}`;
+  const tt=$('#topTitle'); if (tt) tt.textContent = topNames;
   const td=$('#topDesc'); if (td) td.textContent  = top.length>1
     ? 'Екі (немесе одан да көп) доменіңіз тең дәрежеде күшті көрінеді — бұл жан-жақтылықты білдіреді.'
     : (DOMAINS[top[0]]?.desc || 'Қысқаша нәтижелер төменде.');
