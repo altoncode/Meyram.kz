@@ -54,7 +54,7 @@ p.lead{
 
 /* Toggle */
 .switch{ display:inline-flex; align-items:center; gap:10px; user-select:none; }
-.switch input{ display:none; }               /* label арқылы басқарылады */
+.switch input{ display:none; }
 .toggle{
   width:54px; height:30px; border-radius:999px;
   background:#2a355f; position:relative; transition:.2s;
@@ -102,7 +102,7 @@ button[disabled], .btn:disabled{ opacity:.5; cursor:not-allowed; }
   padding:6px 10px; border-radius:999px; color:#cfe0ff;
 }
 .grid{ display:grid; gap:16px; }
-.hidden{ display:none !important; }          /* JS toggle үшін сенімді */
+.hidden{ display:none !important; }
 .result-grid{ display:grid; grid-template-columns:1fr; gap:16px; }
 
 /* Header / Logo / Title */
@@ -125,11 +125,31 @@ button[disabled], .btn:disabled{ opacity:.5; cursor:not-allowed; }
 /* Section titles */
 .section-title { font-weight:800; font-size:18px; margin:8px 0; }
 
-/* Explain mini-cards grid */
-.explain-grid{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; }
-.explain-card{ border:1px solid rgba(255,255,255,.12); border-radius:12px; padding:12px; background:rgba(255,255,255,.03); }
-.explain-card .name{ font-weight:800; margin-bottom:6px; }
-.explain-card .small{ font-size:13px; color:var(--muted); }
+/* Explain — BLOCK формат (адаптивті)
+   Класс атауларын өзгертпей-ақ: explain-grid контейнері,
+   ішінде explain-card — бірақ визуалды түрде «блок» */
+.explain-grid{
+  display:grid;
+  grid-template-columns:1fr;         /* әдетте бір баған */
+  gap:14px;
+}
+.explain-card{
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:14px;
+  padding:16px;
+  background:rgba(255,255,255,.04);
+  box-shadow:0 6px 18px rgba(0,0,0,.25) inset, 0 2px 10px rgba(0,0,0,.15);
+}
+.explain-card .name{
+  font-weight:800;
+  margin:0 0 8px;
+  font-size:16px;
+}
+.explain-card .small{
+  font-size:14px;
+  color:var(--muted);
+  line-height:1.6;
+}
 
 /* Buttons row */
 .actions-row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
@@ -156,7 +176,7 @@ button[disabled], .btn:disabled{ opacity:.5; cursor:not-allowed; }
 @keyframes spin { to { transform: rotate(360deg) } }
 
 /* Quick additions */
-.scale .opt{ color:#fff; }                    /* жауап опциялары ақ */
+.scale .opt{ color:#fff; } /* жауап опциялары ақ */
 
 /* Responsive */
 @media (min-width:640px){
@@ -164,6 +184,7 @@ button[disabled], .btn:disabled{ opacity:.5; cursor:not-allowed; }
 }
 @media (min-width:900px){
   .result-grid{ grid-template-columns:1.1fr .9fr; }
+  .explain-grid{ grid-template-columns:1fr 1fr; }  /* кең экранда 2 баған */
 }
 
 /* Tablet (<=768px) */
@@ -194,6 +215,7 @@ button[disabled], .btn:disabled{ opacity:.5; cursor:not-allowed; }
   .barrow div:last-child{ text-align:left; }
   .card{ padding:16px; }
   .scale{ grid-template-columns:1fr; }
+  .explain-grid{ grid-template-columns:1fr; } /* блоктар толық енімен */
 }
 
 /* Reduced motion */
