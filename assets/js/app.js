@@ -56,16 +56,17 @@ function sanitizeFilename(name){
 function setButtonsEnabled(flag){ const e=$('#btnExport'), s=$('#btnSend'); if (e) e.disabled=!flag; if (s) s.disabled=!flag; }
 function uid(){ return Math.random().toString(16).slice(2)+Math.random().toString(16).slice(2); }
 
-/* ===== JSONP ===== */
+/* ---- JSONP ---- */
+function uid(){ return Math.random().toString(16).slice(2)+Math.random().toString(16).slice(2); }
 function jsonp(url){
   return new Promise((resolve)=>{
-    const cb = '__CB_' + uid();
+    const cb='__CB_'+uid();
     window[cb] = (data)=>{ try{ resolve(data); } finally { delete window[cb]; } };
-    const sc = document.createElement('script');
+    const sc=document.createElement('script');
     sc.src = url + (url.includes('?')?'&':'?') + 'callback=' + encodeURIComponent(cb);
     sc.async = true;
     sc.onerror = ()=> resolve({ ok:false, error:'Network' });
-    sc.onload  = ()=> { try{ document.head.removeChild(sc); }catch(_){} };
+    sc.onload  = ()=> { try{ document.head.removeChild(sc); } catch(_){} };
     document.head.appendChild(sc);
   });
 }
@@ -79,6 +80,8 @@ function buildCreateUrl(expert, answersArr){
   ].join('&');
   return `${GAS_ENDPOINT}?${qs}`;
 }
+
+/* ✅ ЖОҚ БОЛЫП ҚАЛҒАН ФУНКЦИЯНЫ ҚОСУ */
 function buildPrintUrl(expert, answersArr){
   const csv = answersArr.map(v=> (v==null?-1:Number(v))).join(',');
   const qs = [
@@ -89,6 +92,8 @@ function buildPrintUrl(expert, answersArr){
   ].join('&');
   return `${GAS_ENDPOINT}?${qs}`;
 }
+/* Қалаған болсаңыз, глобалға да бекітіп қоямыз: */
+window.buildPrintUrl = buildPrintUrl;
 
 /* ===== Quiz rendering ===== */
 function renderQuestion(){
@@ -235,10 +240,20 @@ async function onExportPdf(){
   await ensurePdfCreated(); // Drive-та файл дайын екеніне көз жеткіземіз
 
   const expert = sanitizeFilename($('#expertName')?.value?.trim() || 'Маман');
-  const printUrl = buildPrintUrl(expert, answers);
-  location.assign(printUrl); // same-tab, ешқандай popup жоқ
-}
 
+  // Қорғаныс: егер қандай да бір себеппен функция қолжетімсіз болса
+  let printUrl;
+  if (typeof buildPrintUrl === 'function') {
+    printUrl = buildPrintUrl(expert, answers);
+  } else {
+    // Фолбэк — тура сол сұранымды қолмен құрамыз
+    const csv = answers.map(v=> (v==null?-1:Number(v))).join(',');
+    printUrl = `${GAS_ENDPOINT}?mode=print&secret=${encodeURIComponent(GAS_SECRET)}&expert=${encodeURIComponent(expert)}&answers=${encodeURIComponent(csv)}`;
+  }
+
+  // same-tab ашылады, сервер HTML ішінен window.print() жасайды
+  location.assign(printUrl);
+}
 // Жіберу: Web Share → WhatsApp fallback
 async function onSendPdf(){
   const pdf = await ensurePdfCreated();
