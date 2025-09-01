@@ -1,7 +1,7 @@
 // Meyram Quiz — app.js (JSONP + same-tab HTML print)
 'use strict';
 
-const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbyfl6CeDRD6MdwrYN2384R0OxfNfzbSPwQVm-r3DSWcPnmCTYdnILwy6IkQeHa7668/exec';
+const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwusiO6zFQ1vwA0gmZxGe78l2SJjYnQmjV-xW0ouEUXpnUxKwN-IYecH0IssbALPRUV/exec';
 const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
 
 const DOMAINS = {
@@ -42,7 +42,7 @@ const answers = new Array(Q_LEN).fill(null);
 let useTimer = false, timerId = null;
 const PER_Q = 20;
 
-let LAST_PDF = null;      // { ok, fileId, fileUrl, name }
+let LAST_PDF = null;      // { ok, fileId, fileUrl, name, ... }
 let CREATE_PROMISE = null;
 let BUSY = false;         // UI guard
 
@@ -200,10 +200,11 @@ function renderExplainCards(){
   };
 
   const order = ['TH','RB','EX','IN'];
+  // CSS-пен сәйкестік үшін explain-card құрылымын қолданамыз
   ex.innerHTML = order.map(k => `
-    <div class="exp-block">
-      <div class="exp-title">${DOMAINS[k].name}</div>
-      <div class="exp-body">
+    <div class="explain-card">
+      <div class="name">${DOMAINS[k].name}</div>
+      <div class="small">
         ${DOMAINS[k].desc}<br>
         <strong>Ұсынылатын рөлдер:</strong> ${SUG[k]}
       </div>
@@ -227,8 +228,10 @@ function renderResultContent(){
   const name = $('#expertName')?.value?.trim() || '';
   const eD=$('#expertDisplay'); if (eD) eD.textContent = name ? `Маман: ${name}` : '';
 
+  // «Басым домен» сөзінсіз — тек атаулар
   const topNames = top.length ? top.map(k=>DOMAINS[k].name).join(' + ') : '—';
   const tt=$('#topTitle'); if (tt) tt.textContent = topNames;
+
   const td=$('#topDesc'); if (td) td.textContent  = top.length>1
     ? 'Екі (немесе одан да көп) доменіңіз тең дәрежеде күшті көрінеді — бұл жан-жақтылықты білдіреді.'
     : (DOMAINS[top[0]]?.desc || 'Қысқаша нәтижелер төменде.');
@@ -249,7 +252,7 @@ function renderResultContent(){
     });
   }
 
-  // Түсіндірме — блок формат
+  // Түсіндірме — блок формат (адаптивті CSS-ке сай)
   renderExplainCards();
 
   updateButtons();
