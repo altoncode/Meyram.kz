@@ -5,7 +5,7 @@ const GAS_ENDPOINT = 'https://script.google.com/macros/s/AKfycbxBvIVQnfCKNYuQXRS
 const GAS_SECRET   = 'meyram_2025_Xx9hP7kL2qRv3sW8aJf1tZ4oBcDyGnHm';
 
 const DOMAINS = {
-  TH:{ name:'Мышление (Стратегиялық ойлау)', color:'#86ffда', desc:'Идеялар, талдау, болашақты көру, стратегия құруға бейім.' },
+  TH:{ name:'Мышление (Стратегиялық ойлау)', color:'#86ffda', desc:'Идеялар, талдау, болашақты көру, стратегия құруға бейім.' },
   RB:{ name:'Отношения (Қарым-қатынас)',      color:'#6ea8fe', desc:'Команданы біріктіріп, сенім орнатады, эмпатиясы жоғары.' },
   EX:{ name:'Достигаторство (Орындау)',       color:'#c8a5ff', desc:'Жоспарды жүйелі орындайды, тәртіп пен дедлайнға сүйенеді.' },
   IN:{ name:'Влияние (Әсер ету)',             color:'#ffd28a', desc:'Көшбасшылық көрсетеді, көпшілікке ойды жеткізе алады.' }
@@ -187,7 +187,7 @@ function compute(){
   return { raw, norm, top };
 }
 
-/* ====================== Explain Cards ====================== */
+/* ====================== Explain (BLOCK) ====================== */
 function renderExplainCards(){
   const ex = $('#explain');
   if (!ex) return;
@@ -200,20 +200,15 @@ function renderExplainCards(){
   };
 
   const order = ['TH','RB','EX','IN'];
-  const cards = order.map(k=>{
-    const card = document.createElement('div');
-    card.className = 'explain-card';
-    card.innerHTML = `
-      <div class="name">${DOMAINS[k].name}</div>
-      <div class="small">
+  ex.innerHTML = order.map(k => `
+    <div class="exp-block">
+      <div class="exp-title">${DOMAINS[k].name}</div>
+      <div class="exp-body">
         ${DOMAINS[k].desc}<br>
         <strong>Ұсынылатын рөлдер:</strong> ${SUG[k]}
       </div>
-    `;
-    return card;
-  });
-
-  ex.replaceChildren(...cards);
+    </div>
+  `).join('');
 }
 
 /* ====================== Result render ====================== */
@@ -254,7 +249,7 @@ function renderResultContent(){
     });
   }
 
-  // Түсіндірме карточкалары
+  // Түсіндірме — блок формат
   renderExplainCards();
 
   updateButtons();
