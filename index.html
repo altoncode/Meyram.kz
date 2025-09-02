@@ -247,51 +247,57 @@
   <script src="assets/js/app.js" defer></script>
 
   <!-- Баспаға дейін бір бетке автоматтық масштаб -->
-  <script>
-    (function(){
-      function fitToA4(){
-        try{
-          var sheet = document.getElementById('printSheet');
-          var content = document.getElementById('printContent');
-          if (!sheet || !content) return;
+ <script>
+  (function(){
+    function fitToA4(){
+      try{
+        var sheet = document.getElementById('printSheet');
+        var content = document.getElementById('printContent');
+        if (!sheet || !content) return;
 
-          // Алдымен масштабы 1 болсын (дұрыс өлшеу үшін)
-          sheet.style.setProperty('--print-scale', 1);
-          content.style.width = '100%';
-          content.style.transform = 'none';
+        // Алдымен 1x масштабқа қайтарып, нақты өлшейміз
+        sheet.style.setProperty('--print-scale', 1);
+        content.style.width = '100%';
+        content.style.transform = 'none';
 
-          // Қолжетімді биіктік — A4 (паддингпен бірге)
-          var cs = getComputedStyle(sheet);
-          var padTop = parseFloat(cs.paddingTop)||0;
-          var padBot = parseFloat(cs.paddingBottom)||0;
-          var avail = sheet.clientHeight - padTop - padBot;
-          var need  = content.scrollHeight;
+        // Паддингтер (мм → px емес, нақты clientHeight-пен жұмыс істейміз)
+        var cs = getComputedStyle(sheet);
+        var padTop = parseFloat(cs.paddingTop)||0;
+        var padBot = parseFloat(cs.paddingBottom)||0;
 
-          var s = Math.min(1, avail / need);
-          if (!isFinite(s) || s <= 0) return;
-          if (s < 0.65) s = 0.65; // тым ұсақ болып кетпесін
+        // Қауіпсіздік: баспа драйвері/дөңгелектеу үшін + 6–8мм қор (px-пен)
+        var SAFETY_PX = 24; // ≈6мм
 
-          sheet.style.setProperty('--print-scale', s.toFixed(3));
-          content.style.width = 'calc(100% / ' + s.toFixed(3) + ')';
-          content.style.transform = 'scale(' + s.toFixed(3) + ')';
-        }catch(e){ /* жұтып қоямыз */ }
+        var avail = sheet.clientHeight - padTop - padBot - SAFETY_PX;
+        var need  = content.scrollHeight;
+
+        var s = Math.min(1, avail / need);
+        if (!isFinite(s) || s <= 0) return;
+
+        // Тағы 1.5% қор — төменгі мәтін қырқылмасын
+        s = s * 0.985;
+        if (s < 0.60) s = 0.60; // тым ұсақ болмасын
+
+        var sv = s.toFixed(3);
+        sheet.style.setProperty('--print-scale', sv);
+        content.style.width = 'calc(100% / ' + sv + ')';
+        content.style.transform = 'scale(' + sv + ')';
+      }catch(e){}
+    }
+
+    // Баспа алдында және экспорт батырмасында шақырамыз
+    if (window.matchMedia) {
+      var mql = window.matchMedia('print');
+      if (mql && mql.addListener) {
+        mql.addListener(function(m){ if (m.matches) fitToA4(); });
       }
-
-      // Баспа алдында және экспорт батырмасына басқанда шақырамыз
-      if (window.matchMedia) {
-        var mql = window.matchMedia('print');
-        if (mql && mql.addListener) {
-          mql.addListener(function(m){ if (m.matches) fitToA4(); });
-        }
-      }
-      window.addEventListener('beforeprint', fitToA4);
-
-      // Жергілікті экспорт батырмасы арқылы принт ашылса — дәл осы сәтте де
-      document.addEventListener('click', function(ev){
-        var t = ev.target && (ev.target.id ? ev.target : ev.target.closest('#btnExport'));
-        if (t && t.id === 'btnExport') setTimeout(fitToA4, 0);
-      }, true);
-    })();
-  </script>
+    }
+    window.addEventListener('beforeprint', fitToA4);
+    document.addEventListener('click', function(ev){
+      var t = ev.target && (ev.target.id ? ev.target : ev.target.closest('#btnExport'));
+      if (t && t.id === 'btnExport') setTimeout(fitToA4, 0);
+    }, true);
+  })();
+</script>
 </body>
 </html>
